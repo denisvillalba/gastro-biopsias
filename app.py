@@ -1524,16 +1524,16 @@ st.markdown(
        ========================================================= */
 
     [data-testid="stSidebar"] {
-        background: #6F8796 !important;
-        border-right: 1px solid #516C7C !important;
+        background: #FFFFFF !important;
+        border-right: 1px solid #D5DEE4 !important;
     }
 
     [data-testid="stSidebar"] > div\:first-child {
-        background: #6F8796 !important;
+        background: #FFFFFF !important;
     }
 
     [data-testid="stSidebarContent"] {
-        background: #6F8796 !important;
+        background: #FFFFFF !important;
     }
 
     [data-testid="stSidebar"] [role="radiogroup"] {
@@ -1541,17 +1541,22 @@ st.markdown(
     }
 
     [data-testid="stSidebar"] [data-testid="stAlert"] {
-        background: rgba(74, 97, 112, 0.55) !important;
-        border: 1.5px solid #506F82 !important;
+        background: #F3F6F8 !important;
+        border: 1.5px solid #D5DEE4 !important;
         border-radius: 9px !important;
     }
 
     [data-testid="stSidebar"] [data-testid="stAlert"] p {
-        color: #E6EEF2 !important;
+        color: #2F4A5A !important;
     }
 
     [data-testid="stSidebar"] hr {
-        border-color: #6E8796 !important;
+        border-color: #D5DEE4 !important;
+    }
+
+    [data-testid="stSidebar"] [data-testid="stCaptionContainer"] p,
+    [data-testid="stSidebar"] .stCaption p {
+        color: #5A7382 !important;
     }
 
 
@@ -1916,13 +1921,14 @@ st.markdown(
         font-size: 17px !important;
         font-weight: 500 !important;
         line-height: 1.35 !important;
+        color: #2F4A5A !important;
     }
 
     /* Separación entre INDICE y la lista del menú */
     [data-testid="stSidebar"] h2 {
         margin-top: 1.5rem !important;
         margin-bottom: 0.30rem !important;
-        color: #F1E6C8 !important;
+        color: #2F4A5A !important;
         font-family: "Press Start 2P", "Courier New", monospace !important;
         font-size: 14px !important;
         font-weight: 400 !important;
