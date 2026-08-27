@@ -31,6 +31,14 @@ from PIL import Image
 
 URL_BACKEND = "http://127.0.0.1:8000"
 
+FORM_ID_FIJO = "1i0mNhszKOCrZN0AqvoCb5QuFnyDL7gNwio6algry_pU"
+FORM_URL_EDITAR_FIJO = (
+    f"https://docs.google.com/forms/d/{FORM_ID_FIJO}/edit"
+)
+FORM_URL_RESPONDER_FIJO = (
+    f"https://docs.google.com/forms/d/{FORM_ID_FIJO}/viewform"
+)
+
 CARPETA_FRONTEND = Path(__file__).resolve().parent
 CARPETA_PROYECTO = CARPETA_FRONTEND.parent
 
@@ -615,33 +623,44 @@ def convertir_fecha_creacion_formulario(valor):
 
 def obtener_formulario_hoy():
     """
-    Devuelve el formulario guardado para el día actual en Perú.
-    Si hoy todavía no existe uno, devuelve None.
+    Intenta FastAPI. Si no hay backend (Streamlit Cloud),
+    usa el formulario fijo de Google.
     """
-    respuesta = requests.get(
-        f"{URL_BACKEND}/formularios",
-        timeout=10,
-    )
-    respuesta.raise_for_status()
+    try:
+        respuesta = requests.get(
+            f"{URL_BACKEND}/formularios",
+            timeout=5,
+        )
+        respuesta.raise_for_status()
 
-    formularios = respuesta.json().get(
-        "formularios",
-        [],
-    )
-
-    hoy = datetime.now(
-        ZoneInfo("America/Lima")
-    ).date()
-
-    for formulario in formularios:
-        fecha_formulario = convertir_fecha_creacion_formulario(
-            formulario.get("fecha_creacion")
+        formularios = respuesta.json().get(
+            "formularios",
+            [],
         )
 
-        if fecha_formulario == hoy:
-            return formulario
+        hoy = datetime.now(
+            ZoneInfo("America/Lima")
+        ).date()
 
-    return None
+        for formulario in formularios:
+            fecha_formulario = convertir_fecha_creacion_formulario(
+                formulario.get("fecha_creacion")
+            )
+
+            if fecha_formulario == hoy:
+                return formulario
+    except Exception:
+        pass
+
+    return {
+        "form_id_google": FORM_ID_FIJO,
+        "titulo": TITULO_GOOGLE_FORM,
+        "url_responder": FORM_URL_RESPONDER_FIJO,
+        "url_editar": FORM_URL_EDITAR_FIJO,
+        "fecha_creacion": datetime.now(
+            ZoneInfo("America/Lima")
+        ).strftime("%Y-%m-%d"),
+    }
 
 
 def cargar_formulario_hoy_en_sesion(formulario):
