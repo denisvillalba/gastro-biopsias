@@ -1452,7 +1452,6 @@ with st.sidebar:
             "🏠 Formulario",
             "📋 Reportes",
             "📥 Indicadores",
-            
         ],
         label_visibility="collapsed",
     )
@@ -1463,14 +1462,21 @@ with st.sidebar:
     st.info("Autorización al usar Google")
     st.caption("✅ VERSIÓN APPS SCRIPT - 08/08/2026")
 
+    st.markdown(
+        """
+        <div class="acento-colores">
+            <i class="c-verde"></i>
+            <i class="c-azul"></i>
+            <i class="c-rojo"></i>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # =========================================================
 # ESTILOS
 # =========================================================
 
-# =========================================================
-# FONDO HOSPITAL - SOLO ÁREA PRINCIPAL
-# =========================================================
 # =========================================================
 # FONDO HOSPITAL - SOLO ÁREA PRINCIPAL
 # =========================================================
@@ -1511,29 +1517,52 @@ st.markdown(
     .stApp,
     [data-testid="stAppViewContainer"] {
         background: linear-gradient(
-            135deg,
-            #AEBCC6 0%,
-            #8EA0AC 52%,
-            #778C98 100%
+            180deg,
+            #C06A7D 0%,
+            #AF596E 100%
         ) !important;
     }
 
-
-    /* =========================================================
+        /* =========================================================
        MENÚ LATERAL
        ========================================================= */
 
     [data-testid="stSidebar"] {
-        background: #FFFFFF !important;
-        border-right: 1px solid #D5DEE4 !important;
+        background: linear-gradient(
+            to right,
+            #FFFFFF 0%,
+            #FFFFFF 70%,
+            #C5D0D6 100%
+        ) !important;
+        border-right: none !important;
+        box-shadow: none !important;
+        z-index: 20 !important;
+        overflow: visible !important;
     }
 
-    [data-testid="stSidebar"] > div\:first-child {
-        background: #FFFFFF !important;
+    [data-testid="stAppViewContainer"] {
+        overflow: visible !important;
+    }
+
+    [data-testid="stSidebar"] > div:first-child {
+        background: linear-gradient(
+            to right,
+            #FFFFFF 0%,
+            #FFFFFF 70%,
+            #C5D0D6 100%
+        ) !important;
+        overflow: visible !important;
+        box-shadow: none !important;
     }
 
     [data-testid="stSidebarContent"] {
-        background: #FFFFFF !important;
+        background: linear-gradient(
+            to right,
+            #FFFFFF 0%,
+            #FFFFFF 70%,
+            #C5D0D6 100%
+        ) !important;
+        box-shadow: none !important;
     }
 
     [data-testid="stSidebar"] [role="radiogroup"] {
@@ -1550,15 +1579,10 @@ st.markdown(
         color: #2F4A5A !important;
     }
 
-    [data-testid="stSidebar"] hr {
-        border-color: #D5DEE4 !important;
-    }
-
     [data-testid="stSidebar"] [data-testid="stCaptionContainer"] p,
     [data-testid="stSidebar"] .stCaption p {
         color: #5A7382 !important;
     }
-
 
     /* =========================================================
        CAJAS PRINCIPALES
@@ -1925,6 +1949,25 @@ st.markdown(
     }
 
     /* Separación entre INDICE y la lista del menú */
+    
+        /* Texto de las opciones del menú lateral */
+    [data-testid="stSidebar"] [role="radiogroup"] label p,
+    [data-testid="stSidebar"] [role="radiogroup"] label span {
+        font-size: 17px !important;
+        font-weight: 500 !important;
+        line-height: 1.35 !important;
+        color: #2F4A5A !important;
+    }
+
+    [data-testid="stSidebar"] [role="radiogroup"] label {
+        border-radius: 9px !important;
+        padding: 4px 6px 4px 4px !important;
+    }
+
+    [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {
+        background: #F3F6F8 !important;
+    }
+
     [data-testid="stSidebar"] h2 {
         margin-top: 1.5rem !important;
         margin-bottom: 0.30rem !important;
@@ -1955,14 +1998,79 @@ st.markdown(
         content: "" !important;
         position: absolute !important;
         left: 0.55rem !important;
-        bottom: -3px !important;
-
+        bottom: -4px !important;
         width: calc(100% - 0.55rem) !important;
-        height: 2px !important;
-
-        background: #CDE538 !important;
+        height: 1px !important;
+        background: #9AADB8 !important;
         border-radius: 999px !important;
-        opacity: 0.70 !important;
+        opacity: 0.85 !important;
+        box-shadow:
+            0 1px 0 rgba(255, 255, 255, 0.70),
+            0 1px 2px rgba(47, 74, 90, 0.18) !important;
+    }
+
+    [data-testid="stSidebar"] hr {
+        border: none !important;
+        border-top: 1px solid #9AADB8 !important;
+        opacity: 0.80 !important;
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.70) !important;
+    }
+
+    [data-testid="stSidebar"] .acento-colores {
+    width: auto !important;
+    height: auto !important;
+    margin: 70px auto 16px auto !important;
+    border: none !important;
+    background: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+}
+
+    [data-testid="stSidebar"] .acento-colores i {
+        display: block !important;
+        width: 6px !important;
+        height: 6px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        flex: 0 0 auto !important;
+        border-radius: 50% !important;
+        border: none !important;
+    }
+
+    [data-testid="stSidebar"] .c-verde {
+    animation: color-1 3.2s linear infinite !important;
+    }
+
+    [data-testid="stSidebar"] .c-azul {
+        animation: color-2 3.2s linear infinite !important;
+    }
+
+    [data-testid="stSidebar"] .c-rojo {
+        animation: color-3 3.2s linear infinite !important;
+    }
+
+    @keyframes color-1 {
+        0%, 100% { background-color: #27AE60; }
+        25%      { background-color: #2E86C1; }
+        50%      { background-color: #E74C3C; }
+        75%      { background-color: #F1C40F; }
+    }
+
+    @keyframes color-2 {
+        0%, 100% { background-color: #2E86C1; }
+        25%      { background-color: #E74C3C; }
+        50%      { background-color: #F1C40F; }
+        75%      { background-color: #27AE60; }
+    }
+
+    @keyframes color-3 {
+        0%, 100% { background-color: #E74C3C; }
+        25%      { background-color: #F1C40F; }
+        50%      { background-color: #27AE60; }
+        75%      { background-color: #2E86C1; }
     }
 
     [data-testid="stSidebar"] [role="radiogroup"] {
@@ -1972,7 +2080,6 @@ st.markdown(
     /* =========================================================
        TARJETA INICIAL DEL FORMULARIO
        ========================================================= */
-
     .st-key-tarjeta_inicio_formulario {
         position: relative !important;
         background: rgba(54, 78, 96, 0.28) !important;
@@ -1980,8 +2087,13 @@ st.markdown(
         border-radius: 22px !important;
         padding: 2.05rem 2.20rem 2.05rem 2.20rem !important;
         margin-top: 1.2rem !important;
+        min-height: 230px !important;
         overflow: hidden !important;
         isolation: isolate !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        
 
         box-shadow:
             0 8px 22px rgba(0, 0, 0, 0.18),
@@ -2029,6 +2141,14 @@ st.markdown(
         will-change: offset-distance !important;
     }
 
+    .st-key-tarjeta_inicio_formulario [data-testid="stVerticalBlock"],
+    .st-key-tarjeta_inicio_formulario [data-testid="stVerticalBlockBorderWrapper"],
+    .st-key-tarjeta_inicio_formulario [data-testid="element-container"] {
+        height: auto !important;
+        min-height: 0 !important;
+        flex: 0 1 auto !important;
+    }
+
     .st-key-tarjeta_inicio_formulario::before {
         animation: luz_borde_horaria 8.5s linear infinite !important;
     }
@@ -2056,7 +2176,7 @@ st.markdown(
     }
 
     .inicio-titulo {
-        color: #F1E6C8 !important;
+        color: #B7CBD3 !important;
         font-family: "Press Start 2P", "Courier New", monospace !important;
         font-size: 18px !important;
         font-weight: 400 !important;
@@ -2064,13 +2184,12 @@ st.markdown(
         letter-spacing: 0.25px !important;
         text-align: center !important;
 
-        margin: 12px auto 12px auto !important;
+        margin: 2px auto 12px auto !important;
         width: max-content !important;
 
         text-shadow:
-            2px 2px 0 rgba(20, 55, 40, 0.60),
-            0 4px 7px rgba(0, 0, 0, 0.38),
-            0 0 3px rgba(21, 128, 61, 0.20) !important;
+            -1px -1px 0 rgba(255, 255, 255, 0.35),
+            1px 1px 1px rgba(0, 0, 0, 0.45) !important;
 
         text-decoration: none !important;
         border-bottom: none !important;
@@ -2172,6 +2291,7 @@ st.markdown(
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
+        margin-top: 0 !important;
     }
 
     /* =========================================================
@@ -2188,9 +2308,16 @@ st.markdown(
         height: 52px !important;
         padding: 0.48rem 0.70rem !important;
 
-        background: rgba(42, 67, 84, 0.90) !important;
-        color: #F2F5F7 !important;
-        border: 1.5px solid #000000 !important;
+        background: linear-gradient(
+            180deg,
+            #CC7488 0%,
+            #BC6579 100%
+        ) !important;
+
+        color: #FFFFFF !important;
+
+        border: 1.5px solid #733547 !important;
+
         border-radius: 13px !important;
 
         font-family: "Orbitron", "Segoe UI", sans-serif !important;
@@ -2211,12 +2338,18 @@ st.markdown(
     .st-key-flujo_paso_1 div.stButton > button:hover,
     .st-key-flujo_paso_2 [data-testid="stLinkButton"] a:hover,
     .st-key-flujo_paso_3 [data-testid="stLinkButton"] a:hover {
-        background: rgba(54, 78, 96, 0.58) !important;
-        border-color: rgba(255, 140, 0, 0.88) !important;
+
+        background: linear-gradient(
+            180deg,
+            #B95A72 0%,
+            #A44761 100%
+        ) !important;
+
+        border-color: #7D3147 !important;
 
         box-shadow:
-            0 0 14px rgba(255, 140, 0, 0.34),
-            0 6px 14px rgba(20, 35, 45, 0.26) !important;
+            0 0 10px rgba(164,71,97,0.30),
+            0 6px 14px rgba(20,35,45,0.20) !important;
     }
 
     .st-key-flujo_paso_1 div.stButton > button p,
@@ -2240,15 +2373,24 @@ st.markdown(
     .st-key-flujo_paso_1 div.stButton > button:disabled,
     .st-key-flujo_paso_2 div.stButton > button:disabled,
     .st-key-flujo_paso_3 div.stButton > button:disabled {
-        background: rgba(54, 78, 96, 0.34) !important;
-        color: rgba(242, 245, 247, 0.58) !important;
-        border-color: #000000 !important;
+
+        background: linear-gradient(
+            180deg,
+            rgba(197,109,128,0.65) 0%,
+            rgba(181,93,113,0.65) 100%
+        ) !important;
+
+        color: rgba(255,255,255,0.90) !important;
+
+        border: none !important;
+
         box-shadow:
-            0 5px 12px rgba(25, 43, 55, 0.30),
-            0 2px 5px rgba(0, 0, 0, 0.15) !important;
+            0 5px 12px rgba(25,43,55,0.18),
+            0 2px 5px rgba(0,0,0,0.08) !important;
+
         cursor: not-allowed !important;
     }
-
+    
     /* Al pasar el mouse por botones desactivados */
         .st-key-flujo_paso_1 div.stButton > button:disabled:hover,
         .st-key-flujo_paso_2 div.stButton > button:disabled:hover,
@@ -2323,7 +2465,7 @@ st.markdown(
        fuera de la tarjeta y pegado a la esquina inferior derecha */
     .st-key-boton_ver_plantilla {
         position: relative !important;
-        transform: translate(-4px, -48px) !important;
+        transform: translate(-30px, -48px) !important;
         margin-bottom: -46px !important;
         z-index: 20 !important;
     }
@@ -2336,8 +2478,9 @@ st.markdown(
     .st-key-boton_ver_plantilla div.stButton > button {
         width: auto !important;
         min-width: 0 !important;
-        min-height: 32px !important;
-        padding: 0.25rem 0.50rem !important;
+        min-height: 42px !important;
+        padding: 0.65rem 1.3rem !important;
+        white-space: nowrap !important;
 
         background: rgba(70, 95, 110, 0.38) !important;
         border: 1px solid rgba(225, 235, 240, 0.42) !important;
@@ -2349,6 +2492,12 @@ st.markdown(
         font-size: 14px !important;
         font-weight: 500 !important;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.55) !important;
+    }
+
+    .st-key-boton_ver_plantilla,
+    .st-key-boton_ver_plantilla div.stButton,
+    .st-key-boton_ver_plantilla div.stButton > button {
+        flex-shrink: 0 !important;
     }
 
     .st-key-boton_ver_plantilla div.stButton > button:hover {
@@ -2368,31 +2517,38 @@ st.markdown(
     }
 
     .footer-informatica {
-        position: fixed !important;
-        bottom: 30px !important;
-        left: calc(50% + 10.5rem) !important;
-        transform: translateX(-50%) !important;
-        z-index: 9999 !important;
+    position: fixed !important;
+    bottom: 18px !important;
+    left: calc(50% + 10.5rem) !important;
+    transform: translateX(-50%) !important;
 
-        color: #DDE7EC !important;
-        font-family: "Orbitron", "Segoe UI", sans-serif !important;
-        font-size: 16px !important;
-        font-weight: 600 !important;
-        letter-spacing: 1px !important;
-        text-align: center !important;
+    color: rgba(230,230,230,0.95) !important;
+    font-size: 15px !important;      /* más grande */
+    font-weight: 600 !important;
+    letter-spacing: 0.6px !important;
 
-        text-shadow:
-            0 1px 2px rgba(0, 0, 0, 0.70),
-            0 0 6px rgba(0, 0, 0, 0.20) !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
 
-        opacity: 0.92 !important;
-        pointer-events: none !important;
-    }
+    text-shadow:
+        0 0 3px rgba(0,0,0,1),
+        0 0 6px rgba(0,0,0,0.95),
+        0 0 12px rgba(0,0,0,0.90),
+        2px 2px 4px rgba(0,0,0,0.90) !important;
+}
 
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+st.markdown(
+        """
+        <div class="acento-colores"></div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.markdown(
     """
@@ -2403,6 +2559,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown("""
+<style>
+.block-container{
+    padding-top: 0.5rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =========================================================
 # CONTENIDO SEGÚN EL MENÚ
@@ -2454,32 +2617,53 @@ if opcion_menu == "🏠 Formulario":
     # =========================================================
 
     
-        
-    margen_izq, columna_tarjeta, margen_der = st.columns(
-            [1.4, 7.2, 1.4]
+    logo_esquina_izq_b64 = obtener_imagen_base64(RUTA_LOGO_DERECHA)
+    logo_esquina_der_b64 = obtener_imagen_base64(RUTA_LOGO_IZQUIERDA)
+
+    st.markdown(
+        f"""
+        <style>
+        .logo-esquina {{
+            position: fixed !important;
+            top: 14px !important;
+            z-index: 15 !important;
+            pointer-events: none !important;
+        }}
+
+        .logo-esquina img {{
+            width: 100px !important;
+            height: auto !important;
+            display: block !important;
+            filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.25));
+        }}
+
+        .logo-esquina-izquierda {{
+            left: calc(21rem + 16px) !important;
+        }}
+
+        .logo-esquina-derecha {{
+            right: 40px !important;
+        }}
+
+        </style>
+
+        <div class="logo-esquina logo-esquina-izquierda">
+            <img src="data:image/png;base64,{logo_esquina_izq_b64}" />
+        </div>
+        <div class="logo-esquina logo-esquina-derecha">
+            <img src="data:image/png;base64,{logo_esquina_der_b64}" />
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    with margen_izq:
-        espacio, logo_izq_col = st.columns([0.2, 1.8])
-
-        with logo_izq_col:
-            if RUTA_LOGO_DERECHA.exists():
-                st.image(
-                    RUTA_LOGO_DERECHA,
-                    width=100,
-                )
-
-    with margen_der:
-        logo_der_col, espacio = st.columns([1.8, 0.2])
-
-        with logo_der_col:
-            if RUTA_LOGO_IZQUIERDA.exists():
-                st.image(
-                    RUTA_LOGO_IZQUIERDA,
-                    width=100,
-                )
+    margen_izq, columna_tarjeta, margen_der = st.columns(
+        [1, 7.2, 1]
+    )
 
     with columna_tarjeta:
+
+    
 
         with st.container(
                             border=True,
@@ -2535,7 +2719,7 @@ if opcion_menu == "🏠 Formulario":
     # Ver plantilla va en una columna lateral propia,
     # fuera de la tarjeta y junto a su esquina inferior derecha.
     ojo_margen_izq, ojo_centro, ojo_costado = st.columns(
-        [1.4, 7.2, 1.4]
+        [1.4, 7.8, 0.8]
     )
 
     with ojo_costado:
