@@ -29,13 +29,9 @@ from PIL import Image
 # CONFIGURACIÓN GENERAL
 # =========================================================
 
-# En local usa tu backend en 127.0.0.1:8000. En Streamlit Cloud, define
-# la variable "URL_BACKEND" en Settings > Secrets con la URL de Render,
-# por ejemplo: URL_BACKEND = "https://gastro-biopsias-backend.onrender.com"
-try:
-    URL_BACKEND = st.secrets["URL_BACKEND"]
-except Exception:
-    URL_BACKEND = "http://127.0.0.1:8000"
+# Render fue retirado: el registro de formularios (antes en SQLite/
+# FastAPI) ahora lo maneja el propio Apps Script (guarda cada
+# formulario en una Google Sheet). Ver listar_formularios_apps_script().
 
 FORM_ID_FIJO = "1i0mNhszKOCrZN0AqvoCb5QuFnyDL7gNwio6algry_pU"
 FORM_URL_EDITAR_FIJO = (
@@ -72,6 +68,38 @@ URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxyw3nCq7ArPti5pwP6B1
 
 # Debe ser la misma clave configurada en Code.gs.
 CLAVE_APPS_SCRIPT = "gastro-biopsias-2026"
+
+
+def listar_formularios_apps_script():
+    """
+    Pide a Apps Script (doGet) la lista de formularios creados.
+    Reemplaza al antiguo GET {URL_BACKEND}/formularios de Render.
+
+    Devuelve una lista de dicts con: form_id_google, titulo,
+    url_responder, url_editar, fecha_creacion.
+    """
+    respuesta = requests.get(
+        URL_APPS_SCRIPT,
+        params={
+            "clave": CLAVE_APPS_SCRIPT,
+            "accion": "listar_formularios",
+        },
+        timeout=15,
+    )
+    respuesta.raise_for_status()
+
+    datos = respuesta.json()
+
+    if not datos.get("ok"):
+        raise ValueError(
+            datos.get(
+                "error",
+                "Apps Script no pudo listar los formularios.",
+            )
+        )
+
+    return datos.get("formularios", [])
+
 
 # Si logo.png no existe, intenta buscar estomago.png
 if not RUTA_LOGO.exists():
@@ -560,8 +588,7 @@ def crear_google_form(campos, progreso=None):
             "campos": campos,
             # El Apps Script reutiliza el mismo formulario guardado si no
             # se fuerza uno nuevo. Como cada dia necesita un Google Form
-            # con ID propio (asi lo espera SQLite), se pide siempre uno
-            # nuevo aqui.
+            # con ID propio, se pide siempre uno nuevo aqui.
             "forzar_nuevo": True,
         },
         timeout=60,
@@ -661,22 +688,13 @@ def convertir_fecha_creacion_formulario(valor):
 
 def obtener_formulario_hoy():
     """
-    Intenta FastAPI. Si el backend responde pero no hay
+    Consulta Apps Script (Google). Si responde pero no hay
     formulario creado hoy, devuelve None (para habilitar el
     boton de creacion). Solo usa el formulario fijo de Google
-    cuando el backend esta realmente inalcanzable.
+    cuando Apps Script esta realmente inalcanzable.
     """
     try:
-        respuesta = requests.get(
-            f"{URL_BACKEND}/formularios",
-            timeout=5,
-        )
-        respuesta.raise_for_status()
-
-        formularios = respuesta.json().get(
-            "formularios",
-            [],
-        )
+        formularios = listar_formularios_apps_script()
 
         hoy = datetime.now(
             ZoneInfo("America/Lima")
@@ -690,11 +708,11 @@ def obtener_formulario_hoy():
             if fecha_formulario == hoy:
                 return formulario
 
-        # El backend respondio correctamente pero no hay
+        # Apps Script respondio correctamente pero no hay
         # formulario creado hoy.
         return None
     except Exception:
-        # No se pudo contactar al backend: se usa el formulario fijo.
+        # No se pudo contactar a Apps Script: se usa el formulario fijo.
         return {
             "form_id_google": FORM_ID_FIJO,
             "titulo": TITULO_GOOGLE_FORM,
@@ -3252,11 +3270,10 @@ if opcion_menu == "🏠 Formulario":
                 )
                 st.rerun()
 
-            respuesta_sqlite = None
-            error_sqlite = None
-
-            # El spinner permanece activo durante TODO el proceso real:
-            # creación del Google Form + registro en SQLite.
+            # El spinner permanece activo durante todo el proceso: Apps
+            # Script crea el Google Form Y lo registra (en su Google
+            # Sheet interna) en la misma llamada. Ya no depende de
+            # Render/SQLite.
             progreso_formulario = st.progress(
                 10,
                 text="Creando formulario..."
@@ -3267,129 +3284,17 @@ if opcion_menu == "🏠 Formulario":
                 progreso_formulario,
             )
 
-            # =====================================================
-            # GUARDAR EL FORMULARIO EN SQLITE MEDIANTE FASTAPI
-            # =====================================================
-            try:
+            progreso_formulario.progress(
+                100,
+                text="Formulario creado"
+            )
 
-                progreso_formulario.progress(
-                    95,
-                    text="Guardando formulario..."
-                )
+            time.sleep(0.3)
 
-                respuesta_sqlite = requests.post(
-                    f"{URL_BACKEND}/formularios",
-                    json={
-                        "form_id_google": datos_formulario["form_id"],
-                        "titulo": datos_formulario["titulo"],
-                        "url_responder": datos_formulario[
-                            "enlace_respuestas"
-                        ],
-                        "url_editar": datos_formulario[
-                            "enlace_edicion"
-                        ],
-                    },
-                    timeout=15,
-                )
+            progreso_formulario.empty()
 
-            except requests.exceptions.ConnectionError:
-                error_sqlite = "conexion"
-
-            except requests.exceptions.Timeout:
-                error_sqlite = "timeout"
-
-            except requests.exceptions.RequestException as error:
-                error_sqlite = ("request", error)
-
-            # Al salir del spinner, el proceso terminó realmente.
-            # Recién aquí se muestra la caja verde / advertencia / error.
-            if respuesta_sqlite is not None:
-
-                if respuesta_sqlite.status_code == 200:
-
-                    progreso_formulario.progress(
-                        100,
-                        text="Formulario creado"
-                    )
-
-                    time.sleep(0.3)
-
-                    progreso_formulario.empty()
-
-                    st.session_state["mostrar_exito_formulario"] = True
-                    st.rerun()
-
-                    # Misma alineación horizontal que la fila de los 3 botones
-                    margen_estado_izq, columna_estado, margen_estado_der = st.columns(
-                        [1.4, 7.2, 1.4]
-                    )
-
-                    with columna_estado:
-
-                        col_exito, col_indicador, col_vacio = st.columns(3)
-
-                        # Debajo del botón 1
-                        with col_exito:
-                            st.success("✅ Formulario creado.")
-
-                        # Debajo del botón 2
-                        with col_indicador:
-                            st.markdown(
-                                """
-                                <div class="indicador-paso-2">
-                                    <div class="triangulo-paso-2">▲</div>
-                                    <div class="texto-paso-2">SIGUIENTE</div>
-                                </div>
-                                """,
-                                unsafe_allow_html=True,
-                            )
-
-                elif respuesta_sqlite.status_code == 409:
-                    try:
-                        detalle_409 = respuesta_sqlite.json().get(
-                            "detail",
-                            respuesta_sqlite.text,
-                        )
-                    except ValueError:
-                        detalle_409 = respuesta_sqlite.text
-
-                    st.warning(
-                        "El Google Form fue creado, pero ya estaba "
-                        f"registrado en SQLite: {detalle_409}"
-                    )
-
-                else:
-                    try:
-                        detalle_error = respuesta_sqlite.json().get(
-                            "detail",
-                            respuesta_sqlite.text,
-                        )
-                    except ValueError:
-                        detalle_error = respuesta_sqlite.text
-
-                    st.error(
-                        "El Google Form fue creado, pero no se pudo "
-                        f"guardar en SQLite: {detalle_error}"
-                    )
-
-            elif error_sqlite == "conexion":
-                st.error(
-                    "El Google Form fue creado, pero no se pudo "
-                    "conectar con FastAPI para guardarlo en SQLite."
-                )
-
-            elif error_sqlite == "timeout":
-                st.error(
-                    "El Google Form fue creado, pero FastAPI tardó "
-                    "demasiado en guardarlo en SQLite."
-                )
-
-            elif isinstance(error_sqlite, tuple) and error_sqlite[0] == "request":
-                st.error(
-                    "El Google Form fue creado, pero ocurrió un error "
-                    "al guardarlo en SQLite."
-                )
-                st.code(str(error_sqlite[1]))
+            st.session_state["mostrar_exito_formulario"] = True
+            st.rerun()
 
             st.session_state["form_url_base"] = (
                 datos_formulario["enlace_respuestas"].split("?")[0]
@@ -3526,17 +3431,7 @@ elif opcion_menu == "📋 Reportes":
     )
 
     try:
-        respuesta_formularios = requests.get(
-            f"{URL_BACKEND}/formularios",
-            timeout=10,
-        )
-
-        respuesta_formularios.raise_for_status()
-
-        formularios = respuesta_formularios.json().get(
-            "formularios",
-            [],
-        )
+        formularios = listar_formularios_apps_script()
 
         if not formularios:
             st.info(
@@ -3737,13 +3632,13 @@ elif opcion_menu == "📋 Reportes":
 
     except requests.exceptions.ConnectionError:
         st.error(
-            "No se pudo conectar con FastAPI. "
-            "Verifica que Uvicorn esté encendido."
+            "No se pudo conectar con Apps Script. "
+            "Verifica tu conexión a internet."
         )
 
     except requests.exceptions.Timeout:
         st.error(
-            "FastAPI tardó demasiado en responder."
+            "Apps Script tardó demasiado en responder."
         )
 
     except HttpError as error:
@@ -3772,16 +3667,7 @@ elif opcion_menu == "📥 Indicadores":
     )
 
     try:
-        respuesta_formularios = requests.get(
-            f"{URL_BACKEND}/formularios",
-            timeout=10,
-        )
-        respuesta_formularios.raise_for_status()
-
-        formularios = respuesta_formularios.json().get(
-            "formularios",
-            [],
-        )
+        formularios = listar_formularios_apps_script()
 
         if not formularios:
             st.info("No hay formularios guardados.")
@@ -3989,13 +3875,13 @@ elif opcion_menu == "📥 Indicadores":
 
     except requests.exceptions.ConnectionError:
         st.error(
-            "No se pudo conectar con FastAPI. "
-            "Verifica que Uvicorn esté encendido."
+            "No se pudo conectar con Apps Script. "
+            "Verifica tu conexión a internet."
         )
 
     except requests.exceptions.Timeout:
         st.error(
-            "FastAPI tardó demasiado en responder."
+            "Apps Script tardó demasiado en responder."
         )
 
     except HttpError as error:
