@@ -207,8 +207,25 @@ CATEGORIAS_BIOPSIA = [
     "Otros",
 ]
 
+# Columnas del cuaderno físico (Sedación/Anestesia hasta Mucosectomía).
+# Igual que Biopsia, es una cuadrícula: cada técnica en una fila, cantidad
+# al costado.
+PROCEDIMIENTOS_ADICIONALES = [
+    "Sedación",
+    "Anestesia",
+    "APL",
+    "ELVE",
+    "Colocación enema",
+    "Inyectoterapia",
+    "Clip",
+    "Polipectomía alta",
+    "Polipectomía baja",
+    "Mucosectomía",
+]
+
 PREFIJO_CANTIDAD_PROCEDIMIENTO = "Cantidad procedimiento - "
 PREFIJO_CANTIDAD_BIOPSIA = "Cantidad biopsia - "
+PREFIJO_CANTIDAD_ADICIONAL = "Cantidad adicional - "
 
 # Columnas que se mostrarán en las cuadrículas de Google Forms.
 # Deje la fila en blanco cuando ese procedimiento/biopsia no corresponda.
@@ -226,6 +243,11 @@ CAMPOS_FORMULARIO = [
         "procedimientos": PROCEDIMIENTOS_BIOPSIA,
         "biopsias_por_procedimiento": BIOPSIAS_POR_PROCEDIMIENTO,
         "categorias": CATEGORIAS_BIOPSIA,
+        "adicionales": PROCEDIMIENTOS_ADICIONALES,
+        # Procedimiento ahora es selección única + cantidad aparte
+        # (ya no es cuadrícula). Biopsia y cantidad y Adicionales siguen
+        # siendo cuadrícula.
+        "procedimiento_cuadricula": False,
         "cantidad_por_fila": True,
         "cantidades": CANTIDADES_GRID,
         "obligatorio": False,
@@ -241,9 +263,14 @@ CAMPOS_FORMULARIO = [
         "obligatorio": True,
     },
     {
-        "titulo": "Persona que recepciona",
+        "titulo": "Técnica",
         "tipo": "parrafo",
         "obligatorio": True,
+    },
+    {
+        "titulo": "Observaciones",
+        "tipo": "parrafo",
+        "obligatorio": False,
     },
 ]
 
@@ -741,7 +768,8 @@ COLUMNAS_REPORTE = [
     "N.º Biopsia",
     "Médico",
     "Enfermera",
-    "Persona que recepciona",
+    "Técnica",
+    "Observaciones",
     "Firma",
 ]
 
@@ -877,6 +905,10 @@ def obtener_registros_formulario(form_id):
                     titulo_respuesta = (
                         f"{PREFIJO_CANTIDAD_BIOPSIA}{titulo_fila}"
                     )
+                elif titulo_grupo == "Procedimientos adicionales y cantidad":
+                    titulo_respuesta = (
+                        f"{PREFIJO_CANTIDAD_ADICIONAL}{titulo_fila}"
+                    )
                 else:
                     titulo_respuesta = (
                         f"{titulo_grupo} - {titulo_fila}"
@@ -965,6 +997,17 @@ def obtener_registros_formulario(form_id):
                 or ""
             ).strip()
         ]
+        adicionales_seleccionados = [
+            opcion
+            for opcion in PROCEDIMIENTOS_ADICIONALES
+            if str(
+                registro.get(
+                    f"{PREFIJO_CANTIDAD_ADICIONAL}{opcion}",
+                    "",
+                )
+                or ""
+            ).strip()
+        ]
 
         if procedimientos_seleccionados:
             registro["Procedimiento"] = ", ".join(
@@ -975,6 +1018,14 @@ def obtener_registros_formulario(form_id):
         if biopsias_seleccionadas:
             registro["Biopsia"] = ", ".join(biopsias_seleccionadas)
             registro["_lista_Biopsia"] = biopsias_seleccionadas
+
+        if adicionales_seleccionados:
+            registro["ProcedimientosAdicionales"] = ", ".join(
+                adicionales_seleccionados
+            )
+            registro["_lista_ProcedimientosAdicionales"] = (
+                adicionales_seleccionados
+            )
 
         registro["_fecha"] = convertir_fecha_formulario(
             registro.get("Fecha")
@@ -1034,12 +1085,40 @@ def obtener_selecciones_registro(registro, titulo):
     return [parte.strip() for parte in texto.split(",") if parte.strip()]
 
 
-def tiene_cantidades_por_opcion(registro):
-    """Indica si la respuesta pertenece al nuevo formato de cantidades."""
+def tiene_cantidades_por_opcion_procedimiento(registro):
+    """Indica si la respuesta usa la cuadrícula de Procedimiento
+    (formularios antiguos). Los formularios nuevos usan selección única
+    + cantidad, así que esto da False para ellos."""
     return any(
         str(clave).startswith(PREFIJO_CANTIDAD_PROCEDIMIENTO)
-        or str(clave).startswith(PREFIJO_CANTIDAD_BIOPSIA)
         for clave in registro.keys()
+    )
+
+
+def tiene_cantidades_por_opcion_biopsia(registro):
+    """Indica si la respuesta usa la cuadrícula de Biopsia y cantidad."""
+    return any(
+        str(clave).startswith(PREFIJO_CANTIDAD_BIOPSIA)
+        for clave in registro.keys()
+    )
+
+
+def tiene_cantidades_por_opcion_adicional(registro):
+    """Indica si la respuesta usa la cuadrícula de Procedimientos
+    adicionales y cantidad (APL, ELVE, enema, etc.)."""
+    return any(
+        str(clave).startswith(PREFIJO_CANTIDAD_ADICIONAL)
+        for clave in registro.keys()
+    )
+
+
+def tiene_cantidades_por_opcion(registro):
+    """Indica si la respuesta pertenece al nuevo formato de cantidades,
+    ya sea en Procedimiento, en Biopsia, en Adicionales, o en varios."""
+    return (
+        tiene_cantidades_por_opcion_procedimiento(registro)
+        or tiene_cantidades_por_opcion_biopsia(registro)
+        or tiene_cantidades_por_opcion_adicional(registro)
     )
 
 
@@ -1147,11 +1226,37 @@ def obtener_biopsias_con_cantidad(registro):
     )
 
 
+def obtener_adicionales_con_cantidad(registro):
+    return obtener_items_con_cantidad(
+        registro=registro,
+        titulo_seleccion="ProcedimientosAdicionales",
+        opciones_catalogo=PROCEDIMIENTOS_ADICIONALES,
+        prefijo_cantidad=PREFIJO_CANTIDAD_ADICIONAL,
+        campo_otro_compatibilidad=None,
+    )
+
+
 def resolver_procedimiento_biopsia(registro):
-    """Compatibilidad con formularios antiguos de una sola cantidad."""
+    """
+    Devuelve el nombre del procedimiento seleccionado.
+
+    Funciona tanto para el formulario nuevo (selección única "Procedimiento")
+    como para formularios antiguos (checkbox de varias opciones). En ambos
+    casos, si la opción elegida es "Otros", se sustituye por el texto
+    escrito en "Otro procedimiento".
+    """
     selecciones = obtener_selecciones_registro(registro, "Procedimiento")
     if selecciones:
-        return ", ".join(selecciones)
+        resueltas = []
+        for seleccion in selecciones:
+            if seleccion.casefold() == "otros":
+                procedimiento_otro = str(
+                    registro.get("Otro procedimiento", "") or ""
+                ).strip()
+                resueltas.append(procedimiento_otro or seleccion)
+            else:
+                resueltas.append(seleccion)
+        return ", ".join(resueltas)
 
     procedimiento = str(registro.get("Procedimiento", "") or "").strip()
     if procedimiento.casefold() == "otros":
@@ -1209,19 +1314,53 @@ def formatear_biopsias(registro):
 
     Mantiene compatibilidad con formularios anteriores.
     """
-    if tiene_cantidades_por_opcion(registro):
-        procedimientos = obtener_procedimientos_con_cantidad(registro)
-        biopsias = obtener_biopsias_con_cantidad(registro)
+    usa_grid_procedimiento = tiene_cantidades_por_opcion_procedimiento(
+        registro
+    )
+    usa_grid_biopsia = tiene_cantidades_por_opcion_biopsia(registro)
+    usa_grid_adicional = tiene_cantidades_por_opcion_adicional(registro)
+
+    if usa_grid_procedimiento or usa_grid_biopsia or usa_grid_adicional:
         lineas = []
 
-        if procedimientos:
-            lineas.append(
-                "Procedimientos: " + formatear_items_cantidad(procedimientos)
-            )
-        if biopsias:
-            lineas.append("Biopsias: " + formatear_items_cantidad(biopsias))
+        if usa_grid_procedimiento:
+            procedimientos = obtener_procedimientos_con_cantidad(registro)
+            if procedimientos:
+                lineas.append(
+                    "Procedimientos: "
+                    + formatear_items_cantidad(procedimientos)
+                )
+        else:
+            # Formulario nuevo: Procedimiento es selección única + Cantidad.
+            procedimiento = resolver_procedimiento_biopsia(registro)
+            cantidad_procedimiento = str(
+                registro.get("Cantidad", "") or ""
+            ).strip()
+            if procedimiento:
+                if cantidad_procedimiento:
+                    lineas.append(
+                        f"Procedimiento: {procedimiento} "
+                        f"({cantidad_procedimiento})"
+                    )
+                else:
+                    lineas.append(f"Procedimiento: {procedimiento}")
 
-        return "\n".join(lineas)
+        if usa_grid_biopsia:
+            biopsias = obtener_biopsias_con_cantidad(registro)
+            if biopsias:
+                lineas.append(
+                    "Biopsias: " + formatear_items_cantidad(biopsias)
+                )
+
+        if usa_grid_adicional:
+            adicionales = obtener_adicionales_con_cantidad(registro)
+            if adicionales:
+                lineas.append(
+                    "Adicionales: " + formatear_items_cantidad(adicionales)
+                )
+
+        if lineas:
+            return "\n".join(lineas)
 
     # ---------------- FORMATO ANTERIOR ----------------
     procedimiento = resolver_procedimiento_biopsia(registro)
@@ -1325,10 +1464,13 @@ def construir_filas_reporte(registros):
                 "Enfermera",
                 "",
             ),
-            "Persona que recepciona": registro.get(
-                "Persona que recepciona",
-                "",
+            "Técnica": registro.get(
+                "Técnica",
+                registro.get("Persona que recepciona", ""),
             ),
+            "Observaciones": registro.get("Observaciones", ""),
+            # Firma no se llena digitalmente: queda siempre en blanco
+            # para la firma física posterior.
             "Firma": "",
         }
 
@@ -1412,7 +1554,8 @@ def crear_excel_registro(filas, nombre_hoja):
         "N.º Biopsia": 28,
         "Médico": 22,
         "Enfermera": 22,
-        "Persona que recepciona": 25,
+        "Técnica": 25,
+        "Observaciones": 30,
         "Firma": 18,
     }
 
@@ -2874,56 +3017,104 @@ if opcion_menu == "🏠 Formulario":
                             "categorias",
                             CATEGORIAS_BIOPSIA,
                         )
+                        adicionales = campo.get(
+                            "adicionales",
+                            PROCEDIMIENTOS_ADICIONALES,
+                        )
                         cantidades = campo.get(
                             "cantidades",
                             CANTIDADES_GRID,
                         )
 
-                        columna_procedimiento, columna_biopsia = st.columns(
-                            [1, 1],
+                        (
+                            columna_procedimiento,
+                            columna_biopsia,
+                            columna_adicional,
+                        ) = st.columns(
+                            [1, 1, 1],
                             gap="large",
                             vertical_alignment="top",
                         )
 
+                        procedimiento_es_cuadricula = campo.get(
+                            "procedimiento_cuadricula",
+                            True,
+                        )
+
                         with columna_procedimiento:
-                            st.markdown("**Procedimiento y cantidad**")
-                            encabezado_nombre, encabezado_cantidad = st.columns(
-                                [2.1, 1],
-                                vertical_alignment="center",
-                            )
-                            with encabezado_nombre:
-                                st.caption("Procedimiento")
-                            with encabezado_cantidad:
-                                st.caption("Cantidad")
-
-                            for indice_opcion, opcion_procedimiento in enumerate(
-                                procedimientos,
-                                start=1,
-                            ):
-                                col_opcion, col_cantidad = st.columns(
-                                    [2.1, 1],
-                                    vertical_alignment="center",
-                                )
-                                with col_opcion:
-                                    st.write(opcion_procedimiento)
-                                with col_cantidad:
-                                    st.selectbox(
-                                        f"Cantidad {opcion_procedimiento}",
-                                        options=[""] + list(cantidades),
-                                        index=0,
-                                        label_visibility="collapsed",
-                                        key=(
-                                            f"cantidad_procedimiento_{numero}_"
-                                            f"{indice_opcion}"
-                                        ),
+                            if procedimiento_es_cuadricula:
+                                st.markdown("**Procedimiento y cantidad**")
+                                encabezado_nombre, encabezado_cantidad = (
+                                    st.columns(
+                                        [2.1, 1],
+                                        vertical_alignment="center",
                                     )
+                                )
+                                with encabezado_nombre:
+                                    st.caption("Procedimiento")
+                                with encabezado_cantidad:
+                                    st.caption("Cantidad")
 
-                            st.text_input(
-                                "Otro procedimiento",
-                                placeholder="Complete solo si usó la fila Otros",
-                                label_visibility="collapsed",
-                                key=f"campo_otro_procedimiento_{numero}",
-                            )
+                                for indice_opcion, opcion_procedimiento in (
+                                    enumerate(procedimientos, start=1)
+                                ):
+                                    col_opcion, col_cantidad = st.columns(
+                                        [2.1, 1],
+                                        vertical_alignment="center",
+                                    )
+                                    with col_opcion:
+                                        st.write(opcion_procedimiento)
+                                    with col_cantidad:
+                                        st.selectbox(
+                                            f"Cantidad {opcion_procedimiento}",
+                                            options=[""] + list(cantidades),
+                                            index=0,
+                                            label_visibility="collapsed",
+                                            key=(
+                                                "cantidad_procedimiento_"
+                                                f"{numero}_{indice_opcion}"
+                                            ),
+                                        )
+
+                                st.text_input(
+                                    "Otro procedimiento",
+                                    placeholder=(
+                                        "Complete solo si usó la fila Otros"
+                                    ),
+                                    label_visibility="collapsed",
+                                    key=f"campo_otro_procedimiento_{numero}",
+                                )
+                            else:
+                                # Procedimiento como selección única
+                                # (opción múltiple) + cantidad aparte.
+                                st.markdown("**Procedimiento**")
+                                st.selectbox(
+                                    "Procedimiento",
+                                    options=list(procedimientos),
+                                    index=0,
+                                    label_visibility="collapsed",
+                                    key=(
+                                        f"campo_procedimiento_unico_{numero}"
+                                    ),
+                                )
+                                st.text_input(
+                                    "Otro procedimiento",
+                                    placeholder=(
+                                        "Complete solo si eligió Otros"
+                                    ),
+                                    label_visibility="collapsed",
+                                    key=f"campo_otro_procedimiento_{numero}",
+                                )
+                                st.markdown("**Cantidad**")
+                                st.text_input(
+                                    "Cantidad",
+                                    placeholder="Cantidad",
+                                    label_visibility="collapsed",
+                                    key=(
+                                        "campo_cantidad_procedimiento_"
+                                        f"{numero}"
+                                    ),
+                                )
 
                         with columna_biopsia:
                             st.markdown("**Biopsia y cantidad**")
@@ -2965,6 +3156,40 @@ if opcion_menu == "🏠 Formulario":
                                 key=f"campo_otra_biopsia_{numero}",
                             )
 
+                        with columna_adicional:
+                            st.markdown("**Procedimientos adicionales**")
+                            encabezado_nombre, encabezado_cantidad = (
+                                st.columns(
+                                    [2.1, 1],
+                                    vertical_alignment="center",
+                                )
+                            )
+                            with encabezado_nombre:
+                                st.caption("Técnica")
+                            with encabezado_cantidad:
+                                st.caption("Cantidad")
+
+                            for indice_opcion, opcion_adicional in (
+                                enumerate(adicionales, start=1)
+                            ):
+                                col_opcion, col_cantidad = st.columns(
+                                    [2.1, 1],
+                                    vertical_alignment="center",
+                                )
+                                with col_opcion:
+                                    st.write(opcion_adicional)
+                                with col_cantidad:
+                                    st.selectbox(
+                                        f"Cantidad {opcion_adicional}",
+                                        options=[""] + list(cantidades),
+                                        index=0,
+                                        label_visibility="collapsed",
+                                        key=(
+                                            "cantidad_adicional_"
+                                            f"{numero}_{indice_opcion}"
+                                        ),
+                                    )
+
                     elif tipo_campo == "lista":
                         st.selectbox(
                             titulo_campo,
@@ -2986,11 +3211,14 @@ if opcion_menu == "🏠 Formulario":
                         )
 
         st.info(
-            "En N.º Biopsia, Procedimiento y Biopsia se muestran como "
-            "cuadrículas: cada opción queda en una fila y la cantidad se marca "
-            "al costado. Deje una fila vacía si no corresponde. Si usa Otros, "
-            "complete el texto correspondiente. La columna Firma no se solicita "
-            "en Google Forms y queda en blanco."
+            "En N.º Biopsia: Procedimiento es una sola opción con su "
+            "cantidad aparte. Biopsia y Procedimientos adicionales (APL, "
+            "ELVE, enema, inyectoterapia, clip, polipectomías, "
+            "mucosectomía) se muestran como cuadrícula: cada opción en "
+            "una fila, cantidad al costado. Deje en blanco lo que no "
+            "corresponda. Si usa Otros, complete el texto correspondiente. "
+            "La columna Firma no se solicita en Google Forms y queda en "
+            "blanco."
         )
 
         st.markdown(
@@ -3605,9 +3833,14 @@ elif opcion_menu == "📥 Indicadores":
                     opcion: 0
                     for opcion in CATEGORIAS_BIOPSIA
                 }
+                totales_adicionales = {
+                    opcion: 0
+                    for opcion in PROCEDIMIENTOS_ADICIONALES
+                }
 
                 for registro in registros:
-                    if tiene_cantidades_por_opcion(registro):
+                    # ---------------- PROCEDIMIENTO ----------------
+                    if tiene_cantidades_por_opcion_procedimiento(registro):
                         for nombre, cantidad_texto in (
                             obtener_procedimientos_con_cantidad(registro)
                         ):
@@ -3617,7 +3850,39 @@ elif opcion_menu == "📥 Indicadores":
                             if nombre not in totales_procedimientos:
                                 totales_procedimientos[nombre] = 0
                             totales_procedimientos[nombre] += cantidad
+                    else:
+                        # Formulario nuevo (selección única) o muy antiguo.
+                        procedimiento = resolver_procedimiento_biopsia(
+                            registro
+                        )
+                        cantidad_procedimiento = convertir_cantidad_biopsia(
+                            registro.get("Cantidad", "")
+                        )
+                        if procedimiento:
+                            if procedimiento not in totales_procedimientos:
+                                totales_procedimientos[procedimiento] = 0
+                            totales_procedimientos[procedimiento] += (
+                                cantidad_procedimiento
+                            )
 
+                    # ---------------- ADICIONALES ----------------
+                    # (APL, ELVE, enema, inyectoterapia, clip,
+                    # polipectomías, mucosectomía). No existe en
+                    # formularios antiguos, así que no hay compatibilidad
+                    # que resolver aquí.
+                    if tiene_cantidades_por_opcion_adicional(registro):
+                        for nombre, cantidad_texto in (
+                            obtener_adicionales_con_cantidad(registro)
+                        ):
+                            cantidad = convertir_cantidad_biopsia(
+                                cantidad_texto
+                            )
+                            if nombre not in totales_adicionales:
+                                totales_adicionales[nombre] = 0
+                            totales_adicionales[nombre] += cantidad
+
+                    # ---------------- BIOPSIA ----------------
+                    if tiene_cantidades_por_opcion_biopsia(registro):
                         for nombre, cantidad_texto in (
                             obtener_biopsias_con_cantidad(registro)
                         ):
@@ -3629,17 +3894,10 @@ elif opcion_menu == "📥 Indicadores":
                             totales_biopsias[nombre] += cantidad
                         continue
 
-                    # Compatibilidad con formularios anteriores.
-                    procedimiento = resolver_procedimiento_biopsia(registro)
                     nombre = resolver_nombre_biopsia(registro)
                     cantidad = convertir_cantidad_biopsia(
                         registro.get("Cantidad", "")
                     )
-
-                    if procedimiento:
-                        if procedimiento not in totales_procedimientos:
-                            totales_procedimientos[procedimiento] = 0
-                        totales_procedimientos[procedimiento] += cantidad
 
                     if nombre:
                         if nombre not in totales_biopsias:
@@ -3700,6 +3958,24 @@ elif opcion_menu == "📥 Indicadores":
                 st.bar_chart(
                     datos_biopsias,
                     x="Biopsia",
+                    y="Cantidad",
+                    use_container_width=True,
+                )
+
+                datos_adicionales = pd.DataFrame(
+                    [
+                        {
+                            "Procedimiento adicional": nombre,
+                            "Cantidad": cantidad,
+                        }
+                        for nombre, cantidad in totales_adicionales.items()
+                    ]
+                )
+
+                st.subheader("Cantidad por procedimiento adicional")
+                st.bar_chart(
+                    datos_adicionales,
+                    x="Procedimiento adicional",
                     y="Cantidad",
                     use_container_width=True,
                 )
