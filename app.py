@@ -525,6 +525,11 @@ def crear_google_form(campos, progreso=None):
             "clave": CLAVE_APPS_SCRIPT,
             "titulo": titulo_formulario,
             "campos": campos,
+            # El Apps Script reutiliza el mismo formulario guardado si no
+            # se fuerza uno nuevo. Como cada dia necesita un Google Form
+            # con ID propio (asi lo espera SQLite), se pide siempre uno
+            # nuevo aqui.
+            "forzar_nuevo": True,
         },
         timeout=60,
     )
@@ -623,8 +628,10 @@ def convertir_fecha_creacion_formulario(valor):
 
 def obtener_formulario_hoy():
     """
-    Intenta FastAPI. Si no hay backend (Streamlit Cloud),
-    usa el formulario fijo de Google.
+    Intenta FastAPI. Si el backend responde pero no hay
+    formulario creado hoy, devuelve None (para habilitar el
+    boton de creacion). Solo usa el formulario fijo de Google
+    cuando el backend esta realmente inalcanzable.
     """
     try:
         respuesta = requests.get(
@@ -649,18 +656,21 @@ def obtener_formulario_hoy():
 
             if fecha_formulario == hoy:
                 return formulario
-    except Exception:
-        pass
 
-    return {
-        "form_id_google": FORM_ID_FIJO,
-        "titulo": TITULO_GOOGLE_FORM,
-        "url_responder": FORM_URL_RESPONDER_FIJO,
-        "url_editar": FORM_URL_EDITAR_FIJO,
-        "fecha_creacion": datetime.now(
-            ZoneInfo("America/Lima")
-        ).strftime("%Y-%m-%d"),
-    }
+        # El backend respondio correctamente pero no hay
+        # formulario creado hoy.
+        return None
+    except Exception:
+        # No se pudo contactar al backend: se usa el formulario fijo.
+        return {
+            "form_id_google": FORM_ID_FIJO,
+            "titulo": TITULO_GOOGLE_FORM,
+            "url_responder": FORM_URL_RESPONDER_FIJO,
+            "url_editar": FORM_URL_EDITAR_FIJO,
+            "fecha_creacion": datetime.now(
+                ZoneInfo("America/Lima")
+            ).strftime("%Y-%m-%d"),
+        }
 
 
 def cargar_formulario_hoy_en_sesion(formulario):
@@ -2187,9 +2197,10 @@ st.markdown(
         margin: 2px auto 12px auto !important;
         width: max-content !important;
 
-        text-shadow:
+       text-shadow:
             -1px -1px 0 rgba(255, 255, 255, 0.35),
-            1px 1px 1px rgba(0, 0, 0, 0.45) !important;
+            1px 1px 1px rgba(0, 0, 0, 0.55),
+            1.5px 2.5px 5px rgba(0, 0, 0, 0.45) !important;
 
         text-decoration: none !important;
         border-bottom: none !important;
@@ -3100,9 +3111,17 @@ if opcion_menu == "🏠 Formulario":
                             )
 
                 elif respuesta_sqlite.status_code == 409:
+                    try:
+                        detalle_409 = respuesta_sqlite.json().get(
+                            "detail",
+                            respuesta_sqlite.text,
+                        )
+                    except ValueError:
+                        detalle_409 = respuesta_sqlite.text
+
                     st.warning(
                         "El Google Form fue creado, pero ya estaba "
-                        "registrado en SQLite."
+                        f"registrado en SQLite: {detalle_409}"
                     )
 
                 else:
