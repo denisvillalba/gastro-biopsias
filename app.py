@@ -29,7 +29,13 @@ from PIL import Image
 # CONFIGURACIÓN GENERAL
 # =========================================================
 
-URL_BACKEND = "http://127.0.0.1:8000"
+# En local usa tu backend en 127.0.0.1:8000. En Streamlit Cloud, define
+# la variable "URL_BACKEND" en Settings > Secrets con la URL de Render,
+# por ejemplo: URL_BACKEND = "https://gastro-biopsias-backend.onrender.com"
+try:
+    URL_BACKEND = st.secrets["URL_BACKEND"]
+except Exception:
+    URL_BACKEND = "http://127.0.0.1:8000"
 
 FORM_ID_FIJO = "1i0mNhszKOCrZN0AqvoCb5QuFnyDL7gNwio6algry_pU"
 FORM_URL_EDITAR_FIJO = (
