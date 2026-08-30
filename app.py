@@ -255,9 +255,19 @@ PREFIJO_CANTIDAD_PROCEDIMIENTO = "Cantidad procedimiento - "
 PREFIJO_CANTIDAD_BIOPSIA = "Cantidad biopsia - "
 PREFIJO_CANTIDAD_ADICIONAL = "Cantidad adicional - "
 
+# Códigos de los equipos (endoscopios/colonoscopios) que aparecen en el
+# cuaderno físico, columna "Equipos". "Otros" habilita el texto libre
+# "Otro equipo".
+EQUIPOS_DISPONIBLES = [
+    "Q2338",
+    "Q2405",
+    "Q2401",
+    "Otros",
+]
+
 # Columnas que se mostrarán en las cuadrículas de Google Forms.
 # Deje la fila en blanco cuando ese procedimiento/biopsia no corresponda.
-CANTIDADES_GRID = [str(numero) for numero in range(1, 11)]
+CANTIDADES_GRID = [str(numero) for numero in range(1, 9)]
 
 CAMPOS_FORMULARIO = [
     {
@@ -272,6 +282,7 @@ CAMPOS_FORMULARIO = [
         "biopsias_por_procedimiento": BIOPSIAS_POR_PROCEDIMIENTO,
         "categorias": CATEGORIAS_BIOPSIA,
         "adicionales": PROCEDIMIENTOS_ADICIONALES,
+        "equipos": EQUIPOS_DISPONIBLES,
         # Procedimiento ahora es selección única + cantidad aparte
         # (ya no es cuadrícula). Biopsia y cantidad y Adicionales siguen
         # siendo cuadrícula.
@@ -784,6 +795,7 @@ MESES_ES = {
 COLUMNAS_REPORTE = [
     "Fecha",
     "N.º Biopsia",
+    "Equipos",
     "Médico",
     "Enfermera",
     "Técnica",
@@ -1286,6 +1298,20 @@ def resolver_procedimiento_biopsia(registro):
     return procedimiento
 
 
+def resolver_equipos(registro):
+    """
+    Devuelve el código de equipo seleccionado (columna "Equipos" del
+    cuaderno físico). Si se eligió "Otros", se sustituye por el texto
+    escrito en "Otro equipo".
+    """
+    equipo = str(registro.get("Equipos", "") or "").strip()
+    if equipo.casefold() == "otros":
+        equipo_otro = str(registro.get("Otro equipo", "") or "").strip()
+        if equipo_otro:
+            return equipo_otro
+    return equipo
+
+
 def resolver_nombre_biopsia(registro):
     """Compatibilidad con formularios antiguos de una sola cantidad."""
     selecciones = obtener_selecciones_registro(registro, "Biopsia")
@@ -1474,6 +1500,7 @@ def construir_filas_reporte(registros):
                 else str(registro.get("Fecha", ""))
             ),
             "N.º Biopsia": formatear_biopsias(registro),
+            "Equipos": resolver_equipos(registro),
             "Médico": registro.get(
                 "Médico",
                 registro.get("Médico / Enfermera", ""),
@@ -1549,7 +1576,7 @@ def crear_excel_registro(filas, nombre_hoja):
             celda.alignment = Alignment(
                 horizontal=(
                     "center"
-                    if indice in (1, 3, 4, 5, 6, 11)
+                    if indice in (1, 3, 4, 5, 6, 7)
                     else "left"
                 ),
                 vertical="center",
@@ -1570,6 +1597,7 @@ def crear_excel_registro(filas, nombre_hoja):
     anchos = {
         "Fecha": 13,
         "N.º Biopsia": 28,
+        "Equipos": 16,
         "Médico": 22,
         "Enfermera": 22,
         "Técnica": 25,
@@ -3039,6 +3067,10 @@ if opcion_menu == "🏠 Formulario":
                             "adicionales",
                             PROCEDIMIENTOS_ADICIONALES,
                         )
+                        equipos = campo.get(
+                            "equipos",
+                            EQUIPOS_DISPONIBLES,
+                        )
                         cantidades = campo.get(
                             "cantidades",
                             CANTIDADES_GRID,
@@ -3132,6 +3164,23 @@ if opcion_menu == "🏠 Formulario":
                                         "campo_cantidad_procedimiento_"
                                         f"{numero}"
                                     ),
+                                )
+
+                                st.markdown("**Equipos**")
+                                st.selectbox(
+                                    "Equipos",
+                                    options=list(equipos),
+                                    index=0,
+                                    label_visibility="collapsed",
+                                    key=f"campo_equipos_{numero}",
+                                )
+                                st.text_input(
+                                    "Otro equipo",
+                                    placeholder=(
+                                        "Complete solo si eligió Otros"
+                                    ),
+                                    label_visibility="collapsed",
+                                    key=f"campo_otro_equipo_{numero}",
                                 )
 
                         with columna_biopsia:
