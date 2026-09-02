@@ -101,45 +101,6 @@ def listar_formularios_apps_script():
     return datos.get("formularios", [])
 
 
-def obtener_respuestas_apps_script(form_id):
-    """
-    Pide a Apps Script (doGet) las respuestas guardadas del
-    formulario indicado.
-
-    Reemplaza la antigua consulta directa a la API de Google Forms,
-    que exigia credentials.json y abrir el navegador para autorizar
-    (por eso el reporte fallaba en la version publicada en Streamlit
-    Cloud: ahi no hay navegador ni archivo de credenciales).
-
-    Devuelve una lista de dicts "crudos": cada uno con el titulo de
-    cada pregunta del formulario como clave y la respuesta como
-    valor, mas "_fecha_envio_iso" con la marca de tiempo del envio.
-    """
-    respuesta = requests.get(
-        URL_APPS_SCRIPT,
-        params={
-            "clave": CLAVE_APPS_SCRIPT,
-            "accion": "obtener_respuestas",
-            "form_id": form_id,
-        },
-        timeout=30,
-    )
-    respuesta.raise_for_status()
-
-    datos = respuesta.json()
-
-    if not datos.get("ok"):
-        raise ValueError(
-            datos.get(
-                "error",
-                "Apps Script no pudo obtener las respuestas.",
-            )
-        )
-
-    return datos.get("registros", [])
-
-
-
 # Si logo.png no existe, intenta buscar estomago.png
 if not RUTA_LOGO.exists():
     RUTA_LOGO = CARPETA_FRONTEND / "estomago.png"
@@ -735,22 +696,16 @@ def convertir_fecha_creacion_formulario(valor):
 
     return None
 
+
 def obtener_formulario_hoy():
     """
     Consulta Apps Script (Google). Si responde pero no hay
     formulario creado hoy, devuelve None (para habilitar el
     boton de creacion). Solo usa el formulario fijo de Google
     cuando Apps Script esta realmente inalcanzable.
-
-    Guarda en st.session_state["aviso_formulario_fijo"] el motivo
-    real de la falla, para no fallar en silencio como antes.
     """
     try:
         formularios = listar_formularios_apps_script()
-
-        # Se pudo hablar con Apps Script: se limpia cualquier aviso
-        # anterior de que se estaba usando el formulario de respaldo.
-        st.session_state.pop("aviso_formulario_fijo", None)
 
         hoy = datetime.now(
             ZoneInfo("America/Lima")
@@ -767,13 +722,8 @@ def obtener_formulario_hoy():
         # Apps Script respondio correctamente pero no hay
         # formulario creado hoy.
         return None
-    except Exception as error:
-        # No se pudo contactar a Apps Script: se usa el formulario fijo,
-        # pero ahora queda un aviso visible con el motivo real (antes
-        # esto era invisible y parecía que "faltaba Equipos" por arte
-        # de magia).
-        st.session_state["aviso_formulario_fijo"] = str(error)
-
+    except Exception:
+        # No se pudo contactar a Apps Script: se usa el formulario fijo.
         return {
             "form_id_google": FORM_ID_FIJO,
             "titulo": TITULO_GOOGLE_FORM,
@@ -924,24 +874,146 @@ def obtener_todas_respuestas_google(servicio_forms, form_id):
 
 def obtener_registros_formulario(form_id):
     """
-    Consulta las respuestas del Google Form seleccionado a traves de
-    Apps Script (sin credentials.json ni autorizacion interactiva),
-    por lo que funciona igual en tu computadora y en la app publicada.
+    Consulta las preguntas y respuestas del Google Form seleccionado.
     """
-    registros_crudos = obtener_respuestas_apps_script(form_id)
+    credenciales = obtener_credenciales_google()
+
+    servicio_forms = build(
+        "forms",
+        "v1",
+        credentials=credenciales,
+        cache_discovery=False,
+    )
+
+    datos_formulario = servicio_forms.forms().get(
+        formId=form_id,
+    ).execute()
+
+    preguntas = {}
+    orden_preguntas = []
+
+    for item in datos_formulario.get("items", []):
+        # Pregunta normal.
+        pregunta = item.get(
+            "questionItem",
+            {},
+        ).get(
+            "question",
+            {},
+        )
+
+        question_id = pregunta.get("questionId")
+
+        if question_id:
+            preguntas[question_id] = item.get(
+                "title",
+                question_id,
+            )
+            orden_preguntas.append(question_id)
+
+        # Cuadrículas de Procedimiento/Biopsia. Google Forms expone
+        # cada fila como una pregunta independiente (rowQuestion).
+        grupo = item.get("questionGroupItem", {})
+        titulo_grupo = str(item.get("title", "") or "").strip()
+
+        if grupo:
+            for pregunta_fila in grupo.get("questions", []):
+                question_id_fila = pregunta_fila.get("questionId")
+                titulo_fila = str(
+                    pregunta_fila.get("rowQuestion", {}).get("title", "")
+                    or ""
+                ).strip()
+
+                if not question_id_fila or not titulo_fila:
+                    continue
+
+                if titulo_grupo == "Procedimiento y cantidad":
+                    titulo_respuesta = (
+                        f"{PREFIJO_CANTIDAD_PROCEDIMIENTO}{titulo_fila}"
+                    )
+                elif titulo_grupo in ("Biopsia", "Biopsia y cantidad"):
+                    # "Biopsia" es el título nuevo (más corto); "Biopsia y
+                    # cantidad" queda por compatibilidad con formularios
+                    # históricos creados antes de este cambio.
+                    titulo_respuesta = (
+                        f"{PREFIJO_CANTIDAD_BIOPSIA}{titulo_fila}"
+                    )
+                elif titulo_grupo in (
+                    "Proc. adic",
+                    "Procedimientos adicionales y cantidad",
+                ):
+                    # "Proc. adic" es el título nuevo (más corto); el otro
+                    # queda por compatibilidad con formularios históricos
+                    # creados antes de este cambio.
+                    titulo_respuesta = (
+                        f"{PREFIJO_CANTIDAD_ADICIONAL}{titulo_fila}"
+                    )
+                else:
+                    titulo_respuesta = (
+                        f"{titulo_grupo} - {titulo_fila}"
+                        if titulo_grupo
+                        else titulo_fila
+                    )
+
+                preguntas[question_id_fila] = titulo_respuesta
+                orden_preguntas.append(question_id_fila)
+
+    respuestas = obtener_todas_respuestas_google(
+        servicio_forms,
+        form_id,
+    )
 
     registros = []
 
-    for registro in registros_crudos:
-        fecha_envio_texto = registro.get("_fecha_envio_iso", "")
+    for respuesta in respuestas:
+        fecha_envio_texto = respuesta.get(
+            "lastSubmittedTime",
+            respuesta.get("createTime", ""),
+        )
 
         fecha_envio_peru = convertir_fecha_envio_peru(
             fecha_envio_texto
         )
 
+        registro = {
+            "Fecha de envío": fecha_envio_texto,
+        }
+
+        respuestas_usuario = respuesta.get(
+            "answers",
+            {},
+        )
+
+        for question_id in orden_preguntas:
+            titulo = preguntas[question_id]
+
+            respuesta_pregunta = respuestas_usuario.get(
+                question_id,
+                {},
+            )
+
+            textos = respuesta_pregunta.get(
+                "textAnswers",
+                {},
+            ).get(
+                "answers",
+                [],
+            )
+
+            valores = [
+                texto.get("value", "")
+                for texto in textos
+                if str(texto.get("value", "")).strip()
+            ]
+            valor = ", ".join(valores)
+
+            registro[titulo] = valor
+            # Conserva la lista original para preguntas checkbox.
+            # Así no se pierde qué opciones fueron marcadas.
+            registro[f"_lista_{titulo}"] = valores
+
         # Reconstruye las selecciones de Procedimiento y Biopsia a partir
-        # de las filas de la cuadricula que si tienen una cantidad marcada
-        # (formularios antiguos basados en cuadricula).
+        # de las filas de la cuadrícula que sí tienen una cantidad marcada.
         procedimientos_seleccionados = [
             opcion
             for opcion in PROCEDIMIENTOS_BIOPSIA
@@ -2746,17 +2818,6 @@ if opcion_menu == "🏠 Formulario":
             st.session_state.pop("form_url_editar", None)
             st.session_state.pop("form_fecha_activa", None)
 
-            # NUEVO: aviso visible si se está usando el formulario de respaldo
-    # (el que puede no tener preguntas actualizadas, como "Equipos").
-    aviso_formulario_fijo = st.session_state.get("aviso_formulario_fijo")
-    if aviso_formulario_fijo:
-        st.warning(
-            "⚠️ No se pudo contactar a Apps Script, así que se está "
-            "usando el formulario de respaldo fijo (puede no tener "
-            "todas las preguntas al día, por ejemplo 'Equipos'). "
-            f"Motivo real: {aviso_formulario_fijo}"
-        )
-
     if "mostrar_plantilla" not in st.session_state:
         st.session_state.mostrar_plantilla = False
 
@@ -3132,7 +3193,7 @@ if opcion_menu == "🏠 Formulario":
                                 )
 
                         with columna_biopsia:
-                            st.markdown("**Biopsia y cantidad**")
+                            st.markdown("**Biopsia**")
                             encabezado_nombre, encabezado_cantidad = st.columns(
                                 [2.1, 1],
                                 vertical_alignment="center",
@@ -3421,7 +3482,7 @@ elif opcion_menu == "📋 Reportes":
     st.markdown(
         """
         <p class="descripcion-seccion">
-            Descarga el registro de biopsias por dia o por mes.
+            Descarga el registro de biopsias por día o por mes.
         </p>
         """,
         unsafe_allow_html=True,
@@ -3432,7 +3493,7 @@ elif opcion_menu == "📋 Reportes":
 
         if not formularios:
             st.info(
-                "Todavia no hay formularios guardados."
+                "Todavía no hay formularios guardados."
             )
 
         else:
@@ -3449,6 +3510,16 @@ elif opcion_menu == "📋 Reportes":
             formulario = formularios[indice_formulario]
             form_id = formulario["form_id_google"]
 
+            tipo_reporte = st.radio(
+                "Tipo de reporte",
+                options=[
+                    "Por día",
+                    "Por mes",
+                ],
+                horizontal=True,
+                key="tipo_reporte_excel",
+            )
+
             with st.spinner(
                 "Consultando respuestas de Google Forms..."
             ):
@@ -3464,8 +3535,8 @@ elif opcion_menu == "📋 Reportes":
 
             if not registros_con_fecha:
                 st.info(
-                    "El formulario todavia no tiene respuestas "
-                    "con una fecha valida."
+                    "El formulario todavía no tiene respuestas "
+                    "con una fecha válida."
                 )
 
             else:
@@ -3476,178 +3547,15 @@ elif opcion_menu == "📋 Reportes":
                     }
                 )
 
-                hoy_peru = datetime.now(
-                    ZoneInfo("America/Lima")
-                ).date()
+                if tipo_reporte == "Por día":
+                    fecha_predeterminada = fechas_disponibles[-1]
 
-                # =================================================
-                # DESCARGA RAPIDA: hoy y mes actual
-                # =================================================
-                st.subheader("Descarga rapida")
-
-                columna_hoy, columna_mes_actual = st.columns(2)
-
-                registros_hoy = [
-                    registro
-                    for registro in registros_con_fecha
-                    if registro["_fecha"] == hoy_peru
-                ]
-
-                registros_mes_actual = [
-                    registro
-                    for registro in registros_con_fecha
-                    if registro["_fecha"].year == hoy_peru.year
-                    and registro["_fecha"].month == hoy_peru.month
-                ]
-
-                with columna_hoy:
-                    if registros_hoy:
-                        st.download_button(
-                            "⬇️ Reporte de HOY "
-                            f"({hoy_peru.strftime('%d/%m/%Y')})",
-                            data=crear_excel_registro(
-                                construir_filas_reporte(
-                                    registros_hoy
-                                ),
-                                "Registro diario",
-                            ),
-                            file_name=(
-                                "registro_biopsias_"
-                                f"{hoy_peru:%Y-%m-%d}.xlsx"
-                            ),
-                            mime=(
-                                "application/vnd.openxmlformats-"
-                                "officedocument.spreadsheetml.sheet"
-                            ),
-                            use_container_width=True,
-                            type="primary",
-                            key="descargar_reporte_hoy",
-                        )
-                    else:
-                        st.button(
-                            "⬇️ Reporte de HOY "
-                            f"({hoy_peru.strftime('%d/%m/%Y')})",
-                            use_container_width=True,
-                            disabled=True,
-                            key="descargar_reporte_hoy_deshabilitado",
-                            help=(
-                                "Todavia no hay respuestas "
-                                "registradas hoy."
-                            ),
-                        )
-
-                with columna_mes_actual:
-                    nombre_mes_actual = (
-                        f"{MESES_ES[hoy_peru.month]} {hoy_peru.year}"
-                    )
-
-                    if registros_mes_actual:
-                        st.download_button(
-                            f"⬇️ Reporte de {nombre_mes_actual}",
-                            data=crear_excel_registro(
-                                construir_filas_reporte(
-                                    registros_mes_actual
-                                ),
-                                "Registro mensual",
-                            ),
-                            file_name=(
-                                "registro_biopsias_"
-                                f"{hoy_peru.year}-"
-                                f"{hoy_peru.month:02d}.xlsx"
-                            ),
-                            mime=(
-                                "application/vnd.openxmlformats-"
-                                "officedocument.spreadsheetml.sheet"
-                            ),
-                            use_container_width=True,
-                            type="primary",
-                            key="descargar_reporte_mes_actual",
-                        )
-                    else:
-                        st.button(
-                            f"⬇️ Reporte de {nombre_mes_actual}",
-                            use_container_width=True,
-                            disabled=True,
-                            key="descargar_reporte_mes_actual_deshabilitado",
-                            help=(
-                                "Todavia no hay respuestas "
-                                "registradas este mes."
-                            ),
-                        )
-
-                st.divider()
-
-                # =================================================
-                # REPORTE POR PERIODO PERSONALIZADO
-                # =================================================
-                tipo_reporte = st.radio(
-                    "Tipo de reporte",
-                    options=[
-                        "Por dia",
-                        "Por mes",
-                    ],
-                    horizontal=True,
-                    key="tipo_reporte_excel",
-                )
-
-                if tipo_reporte == "Por dia":
-                    anios_disponibles_dia = sorted(
-                        {
-                            fecha.year
-                            for fecha in fechas_disponibles
-                        },
-                        reverse=True,
-                    )
-
-                    columna_anio_d, columna_mes_d, columna_dia_d = (
-                        st.columns(3)
-                    )
-
-                    with columna_anio_d:
-                        anio_dia = st.selectbox(
-                            "Año",
-                            options=anios_disponibles_dia,
-                            key="anio_reporte_dia",
-                        )
-
-                    meses_disponibles_dia = sorted(
-                        {
-                            fecha.month
-                            for fecha in fechas_disponibles
-                            if fecha.year == anio_dia
-                        },
-                        reverse=True,
-                    )
-
-                    with columna_mes_d:
-                        mes_dia = st.selectbox(
-                            "Mes",
-                            options=meses_disponibles_dia,
-                            format_func=lambda mes: MESES_ES[mes],
-                            key="mes_reporte_dia",
-                        )
-
-                    dias_disponibles = sorted(
-                        {
-                            fecha.day
-                            for fecha in fechas_disponibles
-                            if fecha.year == anio_dia
-                            and fecha.month == mes_dia
-                        },
-                        reverse=True,
-                    )
-
-                    with columna_dia_d:
-                        dia_dia = st.selectbox(
-                            "Dia",
-                            options=dias_disponibles,
-                            key="dia_reporte_dia",
-                        )
-
-                    fecha_seleccionada = date(
-                        anio_dia,
-                        mes_dia,
-                        dia_dia,
+                    fecha_seleccionada = st.date_input(
+                        "Fecha del reporte",
+                        value=fecha_predeterminada,
+                        min_value=fechas_disponibles[0],
+                        max_value=fechas_disponibles[-1],
+                        key="fecha_reporte_dia",
                     )
 
                     registros_filtrados = [
@@ -3691,8 +3599,7 @@ elif opcion_menu == "📋 Reportes":
                             for registro in registros_con_fecha
                             if registro["_fecha"].year
                             == anio_seleccionado
-                        },
-                        reverse=True,
+                        }
                     )
 
                     with columna_mes:
@@ -3784,17 +3691,17 @@ elif opcion_menu == "📋 Reportes":
     except requests.exceptions.ConnectionError:
         st.error(
             "No se pudo conectar con Apps Script. "
-            "Verifica tu conexion a internet."
+            "Verifica tu conexión a internet."
         )
 
     except requests.exceptions.Timeout:
         st.error(
-            "Apps Script tardo demasiado en responder."
+            "Apps Script tardó demasiado en responder."
         )
 
     except HttpError as error:
         st.error(
-            "Google no permitio consultar las respuestas."
+            "Google no permitió consultar las respuestas."
         )
         st.code(str(error))
 
