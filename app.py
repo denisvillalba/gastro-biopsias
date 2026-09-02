@@ -100,6 +100,44 @@ def listar_formularios_apps_script():
 
     return datos.get("formularios", [])
 
+def obtener_respuestas_apps_script(form_id):
+    """
+    Pide a Apps Script (doGet) las respuestas guardadas del
+    formulario indicado.
+
+    Reemplaza la antigua consulta directa a la API de Google Forms,
+    que exigia credentials.json y abrir el navegador para autorizar
+    (por eso el reporte fallaba en la version publicada en Streamlit
+    Cloud: ahi no hay navegador ni archivo de credenciales).
+
+    Devuelve una lista de dicts "crudos": cada uno con el titulo de
+    cada pregunta del formulario como clave y la respuesta como
+    valor, mas "_fecha_envio_iso" con la marca de tiempo del envio.
+    """
+    respuesta = requests.get(
+        URL_APPS_SCRIPT,
+        params={
+            "clave": CLAVE_APPS_SCRIPT,
+            "accion": "obtener_respuestas",
+            "form_id": form_id,
+        },
+        timeout=30,
+    )
+    respuesta.raise_for_status()
+
+    datos = respuesta.json()
+
+    if not datos.get("ok"):
+        raise ValueError(
+            datos.get(
+                "error",
+                "Apps Script no pudo obtener las respuestas.",
+            )
+        )
+
+    return datos.get("registros", [])
+
+
 
 # Si logo.png no existe, intenta buscar estomago.png
 if not RUTA_LOGO.exists():
@@ -874,143 +912,20 @@ def obtener_todas_respuestas_google(servicio_forms, form_id):
 
 def obtener_registros_formulario(form_id):
     """
-    Consulta las preguntas y respuestas del Google Form seleccionado.
+    Consulta las respuestas del Google Form seleccionado a traves de
+    Apps Script (sin credentials.json ni autorizacion interactiva),
+    por lo que funciona igual en tu computadora y en la app publicada.
     """
-    credenciales = obtener_credenciales_google()
-
-    servicio_forms = build(
-        "forms",
-        "v1",
-        credentials=credenciales,
-        cache_discovery=False,
-    )
-
-    datos_formulario = servicio_forms.forms().get(
-        formId=form_id,
-    ).execute()
-
-    preguntas = {}
-    orden_preguntas = []
-
-    for item in datos_formulario.get("items", []):
-        # Pregunta normal.
-        pregunta = item.get(
-            "questionItem",
-            {},
-        ).get(
-            "question",
-            {},
-        )
-
-        question_id = pregunta.get("questionId")
-
-        if question_id:
-            preguntas[question_id] = item.get(
-                "title",
-                question_id,
-            )
-            orden_preguntas.append(question_id)
-
-        # Cuadrículas de Procedimiento/Biopsia. Google Forms expone
-        # cada fila como una pregunta independiente (rowQuestion).
-        grupo = item.get("questionGroupItem", {})
-        titulo_grupo = str(item.get("title", "") or "").strip()
-
-        if grupo:
-            for pregunta_fila in grupo.get("questions", []):
-                question_id_fila = pregunta_fila.get("questionId")
-                titulo_fila = str(
-                    pregunta_fila.get("rowQuestion", {}).get("title", "")
-                    or ""
-                ).strip()
-
-                if not question_id_fila or not titulo_fila:
-                    continue
-
-                if titulo_grupo == "Procedimiento y cantidad":
-                    titulo_respuesta = (
-                        f"{PREFIJO_CANTIDAD_PROCEDIMIENTO}{titulo_fila}"
-                    )
-                elif titulo_grupo in ("Biopsia", "Biopsia y cantidad"):
-                    # "Biopsia" es el título nuevo (más corto); "Biopsia y
-                    # cantidad" queda por compatibilidad con formularios
-                    # históricos creados antes de este cambio.
-                    titulo_respuesta = (
-                        f"{PREFIJO_CANTIDAD_BIOPSIA}{titulo_fila}"
-                    )
-                elif titulo_grupo in (
-                    "Proc. adic",
-                    "Procedimientos adicionales y cantidad",
-                ):
-                    # "Proc. adic" es el título nuevo (más corto); el otro
-                    # queda por compatibilidad con formularios históricos
-                    # creados antes de este cambio.
-                    titulo_respuesta = (
-                        f"{PREFIJO_CANTIDAD_ADICIONAL}{titulo_fila}"
-                    )
-                else:
-                    titulo_respuesta = (
-                        f"{titulo_grupo} - {titulo_fila}"
-                        if titulo_grupo
-                        else titulo_fila
-                    )
-
-                preguntas[question_id_fila] = titulo_respuesta
-                orden_preguntas.append(question_id_fila)
-
-    respuestas = obtener_todas_respuestas_google(
-        servicio_forms,
-        form_id,
-    )
+    registros_crudos = obtener_respuestas_apps_script(form_id)
 
     registros = []
 
-    for respuesta in respuestas:
-        fecha_envio_texto = respuesta.get(
-            "lastSubmittedTime",
-            respuesta.get("createTime", ""),
-        )
+    for registro in registros_crudos:
+        fecha_envio_texto = registro.get("_fecha_envio_iso", "")
 
         fecha_envio_peru = convertir_fecha_envio_peru(
             fecha_envio_texto
         )
-
-        registro = {
-            "Fecha de envío": fecha_envio_texto,
-        }
-
-        respuestas_usuario = respuesta.get(
-            "answers",
-            {},
-        )
-
-        for question_id in orden_preguntas:
-            titulo = preguntas[question_id]
-
-            respuesta_pregunta = respuestas_usuario.get(
-                question_id,
-                {},
-            )
-
-            textos = respuesta_pregunta.get(
-                "textAnswers",
-                {},
-            ).get(
-                "answers",
-                [],
-            )
-
-            valores = [
-                texto.get("value", "")
-                for texto in textos
-                if str(texto.get("value", "")).strip()
-            ]
-            valor = ", ".join(valores)
-
-            registro[titulo] = valor
-            # Conserva la lista original para preguntas checkbox.
-            # Así no se pierde qué opciones fueron marcadas.
-            registro[f"_lista_{titulo}"] = valores
 
         # Reconstruye las selecciones de Procedimiento y Biopsia a partir
         # de las filas de la cuadrícula que sí tienen una cantidad marcada.
