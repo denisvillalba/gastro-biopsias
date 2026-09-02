@@ -284,8 +284,8 @@ PROCEDIMIENTOS_ADICIONALES = [
     "Colocación enema",
     "Inyectoterapia",
     "Clip",
-    "Polipectomía alta",
-    "Polipectomía baja",
+    "Polipectm alta",
+    "Polipectm baja",
     "Mucosectomía",
 ]
 
@@ -830,16 +830,32 @@ MESES_ES = {
     12: "Diciembre",
 }
 
-COLUMNAS_REPORTE = [
-    "Fecha",
-    "N.º Biopsia",
-    "Equipos",
+COLUMNAS_REPORTE = (
+    [
+        "Fecha",
+        "Médico",
+        "Enfermera",
+        "Técnica",
+        "Procedimiento",
+        "Cantidad",
+        "Equipos",
+    ]
+    + [f"Biopsia [{categoria}]" for categoria in CATEGORIAS_BIOPSIA]
+    + ["Otra biopsia"]
+    + [f"Proc. adic [{adicional}]" for adicional in PROCEDIMIENTOS_ADICIONALES]
+    + ["Observaciones"]
+)
+
+# Columnas de texto libre: se alinean a la izquierda en el Excel. El resto
+# (fechas, cantidades, columnas de la cuadrícula) se centra.
+COLUMNAS_TEXTO_LARGO = {
     "Médico",
     "Enfermera",
     "Técnica",
+    "Procedimiento",
+    "Otra biopsia",
     "Observaciones",
-    "Firma",
-]
+}
 
 
 def convertir_fecha_formulario(valor):
@@ -1409,13 +1425,35 @@ def convertir_cantidad_biopsia(valor):
 
 def construir_filas_reporte(registros):
     """
-    Convierte cada respuesta en una fila del registro de biopsias.
-    La última columna Firma se deja siempre en blanco.
+    Convierte cada respuesta en una fila del registro de biopsias, con
+    una columna por cada dato: igual que la hoja de respuestas del
+    Google Form (una columna por procedimiento/cantidad, una por cada
+    zona de biopsia y una por cada procedimiento adicional).
     """
     filas = []
 
     for registro in registros:
         fecha = registro.get("_fecha")
+
+        if tiene_cantidades_por_opcion_procedimiento(registro):
+            # Formularios antiguos: Procedimiento era una cuadrícula con
+            # varias opciones posibles a la vez.
+            items_procedimiento = obtener_procedimientos_con_cantidad(
+                registro
+            )
+            procedimiento = ", ".join(
+                nombre for nombre, _ in items_procedimiento
+            )
+            cantidad = ", ".join(
+                cantidad_texto
+                for _, cantidad_texto in items_procedimiento
+                if cantidad_texto
+            )
+        else:
+            # Formulario actual: Procedimiento es selección única, con su
+            # propia pregunta "Cantidad" aparte.
+            procedimiento = resolver_procedimiento_biopsia(registro)
+            cantidad = str(registro.get("Cantidad", "") or "").strip()
 
         fila = {
             "Fecha": (
@@ -1423,8 +1461,6 @@ def construir_filas_reporte(registros):
                 if fecha
                 else str(registro.get("Fecha", ""))
             ),
-            "N.º Biopsia": formatear_biopsias(registro),
-            "Equipos": resolver_equipos(registro),
             "Médico": registro.get(
                 "Médico",
                 registro.get("Médico / Enfermera", ""),
@@ -1437,11 +1473,22 @@ def construir_filas_reporte(registros):
                 "Técnica",
                 registro.get("Persona que recepciona", ""),
             ),
+            "Procedimiento": procedimiento,
+            "Cantidad": cantidad,
+            "Equipos": resolver_equipos(registro),
+            "Otra biopsia": registro.get("Otra biopsia", ""),
             "Observaciones": registro.get("Observaciones", ""),
-            # Firma no se llena digitalmente: queda siempre en blanco
-            # para la firma física posterior.
-            "Firma": "",
         }
+
+        for categoria in CATEGORIAS_BIOPSIA:
+            fila[f"Biopsia [{categoria}]"] = registro.get(
+                f"{PREFIJO_CANTIDAD_BIOPSIA}{categoria}", ""
+            )
+
+        for adicional in PROCEDIMIENTOS_ADICIONALES:
+            fila[f"Proc. adic [{adicional}]"] = registro.get(
+                f"{PREFIJO_CANTIDAD_ADICIONAL}{adicional}", ""
+            )
 
         filas.append(fila)
 
@@ -1497,18 +1544,18 @@ def crear_excel_registro(filas, nombre_hoja):
             start=1,
         ):
             celda.border = borde_fino
+            encabezado_columna = COLUMNAS_REPORTE[indice - 1]
             celda.alignment = Alignment(
                 horizontal=(
-                    "center"
-                    if indice in (1, 3, 4, 5, 6, 7)
-                    else "left"
+                    "left"
+                    if encabezado_columna in COLUMNAS_TEXTO_LARGO
+                    else "center"
                 ),
                 vertical="center",
                 wrap_text=True,
             )
 
-        # N.º Biopsia muestra Biopsia + Cantidad en una sola línea.
-        hoja.row_dimensions[numero_fila].height = 60
+        hoja.row_dimensions[numero_fila].height = 30
 
     hoja.freeze_panes = "A2"
 
@@ -1520,14 +1567,16 @@ def crear_excel_registro(filas, nombre_hoja):
 
     anchos = {
         "Fecha": 13,
-        "N.º Biopsia": 28,
-        "Equipos": 16,
-        "Médico": 22,
-        "Enfermera": 22,
-        "Técnica": 25,
-        "Observaciones": 30,
-        "Firma": 18,
+        "Médico": 20,
+        "Enfermera": 20,
+        "Técnica": 20,
+        "Procedimiento": 18,
+        "Cantidad": 10,
+        "Equipos": 14,
+        "Otra biopsia": 22,
+        "Observaciones": 28,
     }
+    ancho_columna_predeterminado = 12
 
     for indice, encabezado in enumerate(
         COLUMNAS_REPORTE,
@@ -1535,7 +1584,7 @@ def crear_excel_registro(filas, nombre_hoja):
     ):
         hoja.column_dimensions[
             get_column_letter(indice)
-        ].width = anchos[encabezado]
+        ].width = anchos.get(encabezado, ancho_columna_predeterminado)
 
     hoja.row_dimensions[1].height = 45
     hoja.sheet_view.showGridLines = False
