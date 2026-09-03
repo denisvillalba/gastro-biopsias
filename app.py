@@ -1943,6 +1943,8 @@ st.markdown(
         transform: translateY(-40px) !important;
         display: flex !important;
         align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
     }
 
     /* Ocultar el circulito original de Streamlit */
