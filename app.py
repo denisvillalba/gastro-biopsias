@@ -1495,10 +1495,111 @@ def construir_filas_reporte(registros):
     return filas
 
 
-def crear_excel_registro(filas, nombre_hoja):
+def construir_totales_procedimientos(registros):
+    """
+    Suma la "Cantidad" agrupada por "Procedimiento" para un conjunto de
+    registros (mismo criterio que usa Indicadores), pensado para
+    mostrarse como hoja aparte en el reporte descargable.
+
+    Devuelve un dict {procedimiento: suma_cantidad}, siempre con las
+    opciones oficiales de PROCEDIMIENTOS_BIOPSIA en 0 aunque no
+    aparezcan en el periodo, más cualquier otro valor libre que
+    aparezca en las respuestas.
+    """
+    totales_procedimientos = {
+        opcion: 0
+        for opcion in PROCEDIMIENTOS_BIOPSIA
+    }
+
+    for registro in registros:
+        if tiene_cantidades_por_opcion_procedimiento(registro):
+            for nombre, cantidad_texto in (
+                obtener_procedimientos_con_cantidad(registro)
+            ):
+                cantidad = convertir_cantidad_biopsia(cantidad_texto)
+                if nombre not in totales_procedimientos:
+                    totales_procedimientos[nombre] = 0
+                totales_procedimientos[nombre] += cantidad
+        else:
+            procedimiento = resolver_procedimiento_biopsia(registro)
+            cantidad_procedimiento = convertir_cantidad_biopsia(
+                registro.get("Cantidad", "")
+            )
+            if procedimiento:
+                if procedimiento not in totales_procedimientos:
+                    totales_procedimientos[procedimiento] = 0
+                totales_procedimientos[procedimiento] += (
+                    cantidad_procedimiento
+                )
+
+    return totales_procedimientos
+
+
+def agregar_hoja_totales_procedimiento(libro, totales_procedimientos):
+    """
+    Agrega al libro una hoja "Totales por Procedimiento" con la suma de
+    Cantidad de cada procedimiento, más un total general.
+    """
+    hoja = libro.create_sheet("Totales por Procedimiento"[:31])
+
+    relleno_encabezado = PatternFill("solid", fgColor="35566B")
+    fuente_encabezado = Font(color="FFFFFF", bold=True)
+    fuente_total = Font(bold=True)
+    borde_fino = Border(
+        left=Side(style="thin", color="7B8790"),
+        right=Side(style="thin", color="7B8790"),
+        top=Side(style="thin", color="7B8790"),
+        bottom=Side(style="thin", color="7B8790"),
+    )
+    alineacion_centro = Alignment(
+        horizontal="center",
+        vertical="center",
+    )
+
+    hoja.append(["Procedimiento", "Suma de Cantidad"])
+    for celda in hoja[1]:
+        celda.fill = relleno_encabezado
+        celda.font = fuente_encabezado
+        celda.alignment = alineacion_centro
+        celda.border = borde_fino
+
+    filas_ordenadas = sorted(
+        totales_procedimientos.items(),
+        key=lambda item: item[0].lower(),
+    )
+
+    total_general = 0
+    for nombre, cantidad in filas_ordenadas:
+        hoja.append([nombre, cantidad])
+        total_general += cantidad
+        fila_actual = hoja[hoja.max_row]
+        fila_actual[0].border = borde_fino
+        fila_actual[1].border = borde_fino
+        fila_actual[1].alignment = alineacion_centro
+
+    hoja.append(["Total general", total_general])
+    fila_total = hoja[hoja.max_row]
+    for celda in fila_total:
+        celda.font = fuente_total
+        celda.border = borde_fino
+    fila_total[1].alignment = alineacion_centro
+
+    hoja.column_dimensions["A"].width = 28
+    hoja.column_dimensions["B"].width = 18
+    hoja.freeze_panes = "A2"
+    hoja.sheet_view.showGridLines = False
+
+    return hoja
+
+
+def crear_excel_registro(filas, nombre_hoja, totales_procedimientos=None):
     """
     Genera el Excel con el mismo orden de columnas del registro físico.
     Firma siempre queda en blanco.
+
+    Si se pasa "totales_procedimientos" (dict {procedimiento: cantidad}),
+    se agrega una segunda hoja "Totales por Procedimiento" con la suma
+    de Cantidad por cada procedimiento del periodo del reporte.
     """
     libro = Workbook()
     hoja = libro.active
@@ -1593,6 +1694,12 @@ def crear_excel_registro(filas, nombre_hoja):
     hoja.page_setup.orientation = "landscape"
     hoja.page_setup.fitToWidth = 1
     hoja.page_setup.fitToHeight = 0
+
+    if totales_procedimientos:
+        agregar_hoja_totales_procedimiento(
+            libro,
+            totales_procedimientos,
+        )
 
     archivo = BytesIO()
     libro.save(archivo)
@@ -3610,6 +3717,12 @@ elif opcion_menu == "📋 Reportes":
                         registros_filtrados
                     )
 
+                    totales_procedimientos_reporte = (
+                        construir_totales_procedimientos(
+                            registros_filtrados
+                        )
+                    )
+
                     st.metric(
                         "Registros",
                         len(filas_reporte),
@@ -3622,6 +3735,7 @@ elif opcion_menu == "📋 Reportes":
                     contenido_excel = crear_excel_registro(
                         filas_reporte,
                         nombre_hoja,
+                        totales_procedimientos_reporte,
                     )
 
                     st.download_button(
