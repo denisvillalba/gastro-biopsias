@@ -1501,36 +1501,47 @@ def construir_totales_procedimientos(registros):
     registros (mismo criterio que usa Indicadores), pensado para
     mostrarse como hoja aparte en el reporte descargable.
 
+    "Otros" no se cuenta como cajón genérico: solo se suma cuando hay
+    una descripción real en "Otro procedimiento"; si se eligió Otros
+    sin describir de qué se trató, esa cantidad no se cuenta. Dos
+    nombres que solo difieren en mayúsculas/minúsculas (por ejemplo
+    "nuevo procedimiento" y "Nuevo Procedimiento") se tratan como el
+    mismo procedimiento y se suman juntos.
+
     Devuelve un dict {procedimiento: suma_cantidad}, siempre con las
-    opciones oficiales de PROCEDIMIENTOS_BIOPSIA en 0 aunque no
-    aparezcan en el periodo, más cualquier otro valor libre que
-    aparezca en las respuestas.
+    opciones oficiales de PROCEDIMIENTOS_BIOPSIA (salvo "Otros") en 0
+    aunque no aparezcan en el periodo, más cualquier otro valor libre
+    que aparezca en las respuestas.
     """
-    totales_procedimientos = {
-        opcion: 0
-        for opcion in PROCEDIMIENTOS_BIOPSIA
-    }
+    totales_procedimientos = {}
+    nombre_por_clave = {}
+
+    def sumar(nombre, cantidad):
+        nombre = str(nombre or "").strip()
+        if not nombre or nombre.casefold() == "otros":
+            return
+        clave = nombre.casefold()
+        nombre_normalizado = nombre_por_clave.setdefault(clave, nombre)
+        totales_procedimientos[nombre_normalizado] = (
+            totales_procedimientos.get(nombre_normalizado, 0)
+            + cantidad
+        )
+
+    for opcion in PROCEDIMIENTOS_BIOPSIA:
+        sumar(opcion, 0)
 
     for registro in registros:
         if tiene_cantidades_por_opcion_procedimiento(registro):
             for nombre, cantidad_texto in (
                 obtener_procedimientos_con_cantidad(registro)
             ):
-                cantidad = convertir_cantidad_biopsia(cantidad_texto)
-                if nombre not in totales_procedimientos:
-                    totales_procedimientos[nombre] = 0
-                totales_procedimientos[nombre] += cantidad
+                sumar(nombre, convertir_cantidad_biopsia(cantidad_texto))
         else:
             procedimiento = resolver_procedimiento_biopsia(registro)
             cantidad_procedimiento = convertir_cantidad_biopsia(
                 registro.get("Cantidad", "")
             )
-            if procedimiento:
-                if procedimiento not in totales_procedimientos:
-                    totales_procedimientos[procedimiento] = 0
-                totales_procedimientos[procedimiento] += (
-                    cantidad_procedimiento
-                )
+            sumar(procedimiento, cantidad_procedimiento)
 
     return totales_procedimientos
 
@@ -1548,6 +1559,10 @@ def construir_totales_biopsias(registros):
     cantidad NO se cuenta en esta hoja (no hay una categoría real a la
     que asignarla).
 
+    Dos descripciones de "Otros" que solo difieran en mayúsculas/
+    minúsculas (por ejemplo "Biopsia abc" y "biopsia ABC") se tratan
+    como la misma y se suman juntas.
+
     Devuelve un dict {tipo_biopsia: suma_cantidad} con las categorías
     oficiales de CATEGORIAS_BIOPSIA (salvo "Otros") en el orden de la
     libreta física, más cualquier biopsia "Otros" con descripción
@@ -1559,6 +1574,7 @@ def construir_totales_biopsias(registros):
         if categoria.casefold() != "otros"
     }
     totales_otros = {}
+    nombre_otros_por_clave = {}
 
     for registro in registros:
         for categoria in totales_biopsias:
@@ -1576,8 +1592,13 @@ def construir_totales_biopsias(registros):
         )
 
         if texto_otros and cantidad_otros:
-            totales_otros[texto_otros] = (
-                totales_otros.get(texto_otros, 0) + cantidad_otros
+            clave_otros = texto_otros.casefold()
+            nombre_normalizado = nombre_otros_por_clave.setdefault(
+                clave_otros, texto_otros
+            )
+            totales_otros[nombre_normalizado] = (
+                totales_otros.get(nombre_normalizado, 0)
+                + cantidad_otros
             )
 
     for nombre, cantidad in sorted(
