@@ -4284,31 +4284,34 @@ elif opcion_menu == "📥 Indicadores":
                         range(0, techo_eje + 1, 10)
                     )
 
-                    grafico_mensual = (
+                    orden_fechas = [
+                        dia.strftime("%d/%m") for dia in dias_del_mes
+                    ]
+
+                    eje_x = alt.X(
+                        "Fecha:N",
+                        sort=orden_fechas,
+                        title="Fecha",
+                    )
+                    eje_y = alt.Y(
+                        "Cantidad:Q",
+                        title="Cantidad acumulada",
+                        scale=alt.Scale(domain=[0, techo_eje]),
+                        axis=alt.Axis(values=valores_eje),
+                    )
+                    color_categoria = alt.Color(
+                        "Categoría:N",
+                        sort=orden_categorias,
+                        legend=alt.Legend(title=None),
+                    )
+
+                    lineas = (
                         alt.Chart(datos_mensual_largo)
                         .mark_line(point=True)
                         .encode(
-                            x=alt.X(
-                                "Fecha:N",
-                                sort=[
-                                    dia.strftime("%d/%m")
-                                    for dia in dias_del_mes
-                                ],
-                                title="Fecha",
-                            ),
-                            y=alt.Y(
-                                "Cantidad:Q",
-                                title="Cantidad acumulada",
-                                scale=alt.Scale(
-                                    domain=[0, techo_eje]
-                                ),
-                                axis=alt.Axis(values=valores_eje),
-                            ),
-                            color=alt.Color(
-                                "Categoría:N",
-                                sort=orden_categorias,
-                                legend=alt.Legend(title=None),
-                            ),
+                            x=eje_x,
+                            y=eje_y,
+                            color=color_categoria,
                             order=alt.Order(
                                 "Categoría:N",
                                 sort="ascending",
@@ -4319,6 +4322,36 @@ elif opcion_menu == "📥 Indicadores":
                                 "Cantidad",
                             ],
                         )
+                    )
+
+                    # Suma total (último punto de cada línea) marcada
+                    # sobre el propio gráfico, junto al final de cada
+                    # serie.
+                    datos_totales_finales = datos_mensual_largo[
+                        datos_mensual_largo["Fecha"]
+                        == orden_fechas[-1]
+                    ]
+
+                    etiquetas_totales = (
+                        alt.Chart(datos_totales_finales)
+                        .mark_text(
+                            align="left",
+                            dx=10,
+                            fontWeight="bold",
+                            fontSize=13,
+                        )
+                        .encode(
+                            x=eje_x,
+                            y=eje_y,
+                            text="Cantidad:Q",
+                            color=color_categoria,
+                        )
+                    )
+
+                    grafico_mensual = (
+                        lineas + etiquetas_totales
+                    ).configure_legend(
+                        title=None,
                     )
 
                     st.subheader("Acumulado del mes")
