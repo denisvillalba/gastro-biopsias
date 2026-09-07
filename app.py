@@ -14,7 +14,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
@@ -4064,161 +4064,99 @@ elif opcion_menu == "📥 Indicadores":
                 st.metric("Registros", total_registros)
 
                 # =====================================================
-                # CANTIDAD POR PROCEDIMIENTO Y POR BIOPSIA
+                # TOTALES DEL MES (Procedimientos / Biopsias / Adicionales)
                 # =====================================================
 
-                totales_procedimientos = {
-                    opcion: 0
-                    for opcion in PROCEDIMIENTOS_BIOPSIA
-                }
-                totales_biopsias = {
-                    opcion: 0
-                    for opcion in CATEGORIAS_BIOPSIA
-                }
-                totales_adicionales = {
-                    opcion: 0
-                    for opcion in PROCEDIMIENTOS_ADICIONALES
-                }
+                hoy = datetime.now(ZoneInfo("America/Lima")).date()
+                inicio_mes = hoy.replace(day=1)
 
-                for registro in registros:
-                    # ---------------- PROCEDIMIENTO ----------------
-                    if tiene_cantidades_por_opcion_procedimiento(registro):
-                        for nombre, cantidad_texto in (
-                            obtener_procedimientos_con_cantidad(registro)
-                        ):
-                            cantidad = convertir_cantidad_biopsia(
-                                cantidad_texto
-                            )
-                            if nombre not in totales_procedimientos:
-                                totales_procedimientos[nombre] = 0
-                            totales_procedimientos[nombre] += cantidad
-                    else:
-                        # Formulario nuevo (selección única) o muy antiguo.
-                        procedimiento = resolver_procedimiento_biopsia(
-                            registro
-                        )
-                        cantidad_procedimiento = convertir_cantidad_biopsia(
-                            registro.get("Cantidad", "")
-                        )
-                        if procedimiento:
-                            if procedimiento not in totales_procedimientos:
-                                totales_procedimientos[procedimiento] = 0
-                            totales_procedimientos[procedimiento] += (
-                                cantidad_procedimiento
-                            )
+                registros_mes = [
+                    registro
+                    for registro in registros
+                    if registro.get("_fecha") is not None
+                    and inicio_mes <= registro["_fecha"] <= hoy
+                ]
 
-                    # ---------------- ADICIONALES ----------------
-                    # (APL, ELVE, enema, inyectoterapia, clip,
-                    # polipectomías, mucosectomía). No existe en
-                    # formularios antiguos, así que no hay compatibilidad
-                    # que resolver aquí.
-                    if tiene_cantidades_por_opcion_adicional(registro):
-                        for nombre, cantidad_texto in (
-                            obtener_adicionales_con_cantidad(registro)
-                        ):
-                            cantidad = convertir_cantidad_biopsia(
-                                cantidad_texto
-                            )
-                            if nombre not in totales_adicionales:
-                                totales_adicionales[nombre] = 0
-                            totales_adicionales[nombre] += cantidad
+                total_procedimientos_mes = sum(
+                    construir_totales_procedimientos(
+                        registros_mes
+                    ).values()
+                )
+                total_biopsias_mes = sum(
+                    construir_totales_biopsias(registros_mes).values()
+                )
+                total_adicionales_mes = sum(
+                    construir_totales_procedimientos_adicionales(
+                        registros_mes
+                    ).values()
+                )
 
-                    # ---------------- BIOPSIA ----------------
-                    if tiene_cantidades_por_opcion_biopsia(registro):
-                        for nombre, cantidad_texto in (
-                            obtener_biopsias_con_cantidad(registro)
-                        ):
-                            cantidad = convertir_cantidad_biopsia(
-                                cantidad_texto
-                            )
-                            if nombre not in totales_biopsias:
-                                totales_biopsias[nombre] = 0
-                            totales_biopsias[nombre] += cantidad
-                        continue
+                st.subheader(
+                    f"Totales del mes ({inicio_mes:%d/%m} - {hoy:%d/%m})"
+                )
 
-                    nombre = resolver_nombre_biopsia(registro)
-                    cantidad = convertir_cantidad_biopsia(
-                        registro.get("Cantidad", "")
+                columna_proc, columna_biop, columna_adic = st.columns(3)
+
+                with columna_proc:
+                    st.metric(
+                        "Total Procedimientos",
+                        total_procedimientos_mes,
                     )
 
-                    if nombre:
-                        if nombre not in totales_biopsias:
-                            totales_biopsias[nombre] = 0
-                        totales_biopsias[nombre] += cantidad
+                with columna_biop:
+                    st.metric(
+                        "Total Biopsias",
+                        total_biopsias_mes,
+                    )
 
-                    # Compatibilidad con formularios anteriores de 3 pares.
-                    if not nombre:
-                        for numero_biopsia in range(1, 4):
-                            nombre_anterior = str(
-                                registro.get(
-                                    f"Biopsia {numero_biopsia} - Nombre",
-                                    "",
-                                ) or ""
-                            ).strip()
-                            cantidad_anterior = convertir_cantidad_biopsia(
-                                registro.get(
-                                    f"Biopsia {numero_biopsia} - Cantidad",
-                                    "",
-                                )
-                            )
-                            if nombre_anterior:
-                                if nombre_anterior not in totales_biopsias:
-                                    totales_biopsias[nombre_anterior] = 0
-                                totales_biopsias[nombre_anterior] += (
-                                    cantidad_anterior
-                                )
+                with columna_adic:
+                    st.metric(
+                        "Total Proc. Adicionales",
+                        total_adicionales_mes,
+                    )
 
-                datos_procedimientos = pd.DataFrame(
-                    [
-                        {
-                            "Procedimiento": nombre,
-                            "Cantidad": cantidad,
-                        }
-                        for nombre, cantidad in totales_procedimientos.items()
+                # Un día por fila, desde el 1 del mes hasta hoy, con la
+                # cantidad de ESE día en cada una de las 3 categorías.
+                dias_del_mes = [
+                    inicio_mes + timedelta(dias)
+                    for dias in range((hoy - inicio_mes).days + 1)
+                ]
+
+                filas_mensual = []
+                for dia in dias_del_mes:
+                    registros_dia = [
+                        registro
+                        for registro in registros_mes
+                        if registro.get("_fecha") == dia
                     ]
-                )
-
-                st.subheader("Cantidad por procedimiento")
-                st.bar_chart(
-                    datos_procedimientos,
-                    x="Procedimiento",
-                    y="Cantidad",
-                    use_container_width=True,
-                )
-
-                datos_biopsias = pd.DataFrame(
-                    [
+                    filas_mensual.append(
                         {
-                            "Biopsia": nombre,
-                            "Cantidad": cantidad,
+                            "Fecha": dia.strftime("%d/%m"),
+                            "Procedimientos": sum(
+                                construir_totales_procedimientos(
+                                    registros_dia
+                                ).values()
+                            ),
+                            "Biopsias": sum(
+                                construir_totales_biopsias(
+                                    registros_dia
+                                ).values()
+                            ),
+                            "Proc. Adicionales": sum(
+                                construir_totales_procedimientos_adicionales(
+                                    registros_dia
+                                ).values()
+                            ),
                         }
-                        for nombre, cantidad in totales_biopsias.items()
-                    ]
+                    )
+
+                datos_mensual = pd.DataFrame(filas_mensual).set_index(
+                    "Fecha"
                 )
 
-                st.subheader("Cantidad por biopsia")
-                st.bar_chart(
-                    datos_biopsias,
-                    x="Biopsia",
-                    y="Cantidad",
-                    use_container_width=True,
-                )
-
-                datos_adicionales = pd.DataFrame(
-                    [
-                        {
-                            "Procedimiento adicional": nombre,
-                            "Cantidad": cantidad,
-                        }
-                        for nombre, cantidad in totales_adicionales.items()
-                    ]
-                )
-
-                st.subheader("Cantidad por procedimiento adicional")
-                st.bar_chart(
-                    datos_adicionales,
-                    x="Procedimiento adicional",
-                    y="Cantidad",
+                st.subheader("Cantidad por día (mes en curso)")
+                st.line_chart(
+                    datos_mensual,
                     use_container_width=True,
                 )
 
