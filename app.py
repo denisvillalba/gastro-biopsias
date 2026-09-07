@@ -2504,9 +2504,9 @@ st.markdown(
     [data-testid="stSidebar"] [role="radiogroup"] label p,
     [data-testid="stSidebar"] [role="radiogroup"] label span {
         font-size: 17px !important;
-        font-weight: 500 !important;
+        font-weight: 700 !important;
         line-height: 1.35 !important;
-        color: #2F4A5A !important;
+        color: #003C84 !important;
     }
 
     /* Separación entre INDICE y la lista del menú */
@@ -2515,9 +2515,9 @@ st.markdown(
     [data-testid="stSidebar"] [role="radiogroup"] label p,
     [data-testid="stSidebar"] [role="radiogroup"] label span {
         font-size: 17px !important;
-        font-weight: 500 !important;
+        font-weight: 700 !important;
         line-height: 1.35 !important;
-        color: #2F4A5A !important;
+        color: #003C84 !important;
     }
 
     [data-testid="stSidebar"] [role="radiogroup"] label {
@@ -2532,7 +2532,7 @@ st.markdown(
     [data-testid="stSidebar"] h2 {
         margin-top: 1.5rem !important;
         margin-bottom: 0.30rem !important;
-        color: #2F4A5A !important;
+        color: #3A3F44 !important;
         font-family: "Press Start 2P", "Courier New", monospace !important;
         font-size: 14px !important;
         font-weight: 400 !important;
