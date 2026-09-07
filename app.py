@@ -2157,7 +2157,7 @@ st.markdown(
        ========================================================= */
 
     .titulo-principal {
-        color: #F2D79B !important;
+        color: #3A3F44 !important;
         font-size: 31px !important;
         font-weight: 800 !important;
         line-height: 1.20 !important;
@@ -2172,7 +2172,10 @@ st.markdown(
         max-width: none !important;
 
         border-bottom: 1.5px solid rgba(225, 236, 242, 0.65) !important;
-        text-shadow: 0 2px 4px rgba(28, 45, 57, 0.25) !important;
+        text-shadow:
+            0 0 6px rgba(255, 255, 255, 0.55),
+            0 0 14px rgba(255, 255, 255, 0.30),
+            0 1px 2px rgba(0, 0, 0, 0.20) !important;
     }
 
     .subtitulo-principal,
@@ -2196,19 +2199,25 @@ st.markdown(
 
     .st-key-caja_conexion h3,
     .st-key-caja_excel h3 {
-        color: #F3C087 !important;
+        color: #3A3F44 !important;
         font-size: 25px !important;
         font-weight: 750 !important;
         letter-spacing: 0.15px !important;
         margin-bottom: 5px !important;
-        text-shadow: 0 1px 2px rgba(25, 42, 53, 0.22) !important;
+        text-shadow:
+            0 0 5px rgba(255, 255, 255, 0.45),
+            0 1px 2px rgba(0, 0, 0, 0.18) !important;
     }
 
     .st-key-caja_conexion [data-testid="stCaptionContainer"],
     .st-key-caja_excel [data-testid="stCaptionContainer"] {
-        color: #D7E1E7 !important;
+        color: #003C84 !important;
         font-size: 16px !important;
+        font-weight: 650 !important;
         line-height: 1.45 !important;
+        text-shadow:
+            0 0 5px rgba(255, 255, 255, 0.65),
+            0 0 10px rgba(255, 255, 255, 0.40) !important;
     }
 
 
@@ -2217,7 +2226,11 @@ st.markdown(
        ========================================================= */
 
     [data-testid="stMain"] label {
-        color: #F1F5F7 !important;
+        color: #003C84 !important;
+        font-weight: 650 !important;
+        text-shadow:
+            0 0 5px rgba(255, 255, 255, 0.65),
+            0 0 10px rgba(255, 255, 255, 0.40) !important;
     }
 
     [data-testid="stVerticalBlockBorderWrapper"] {
@@ -2228,7 +2241,11 @@ st.markdown(
     }
 
     [data-testid="stVerticalBlockBorderWrapper"] p {
-        color: #F1F5F7 !important;
+        color: #003C84 !important;
+        font-weight: 650 !important;
+        text-shadow:
+            0 0 5px rgba(255, 255, 255, 0.65),
+            0 0 10px rgba(255, 255, 255, 0.40) !important;
     }
 
 
