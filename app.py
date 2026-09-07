@@ -5,9 +5,11 @@ from textwrap import dedent
 import base64
 import calendar
 import json
+import math
 import re
 import time
 
+import altair as alt
 import requests
 import pandas as pd
 import streamlit as st
@@ -4208,8 +4210,10 @@ elif opcion_menu == "📥 Indicadores":
                         )
 
                     # Un día por fila, desde el 1 del mes hasta el fin
-                    # calculado arriba, con la cantidad de ESE día en
-                    # cada una de las 3 categorías.
+                    # calculado arriba, con la suma ACUMULADA (del 1 a
+                    # esa fecha) de cada una de las 3 categorías, en
+                    # ese orden: Procedimientos, Biopsias, Proc.
+                    # Adicionales.
                     dias_del_mes = [
                         inicio_mes + timedelta(dias)
                         for dias in range(
@@ -4217,41 +4221,109 @@ elif opcion_menu == "📥 Indicadores":
                         )
                     ]
 
+                    acumulado_procedimientos = 0
+                    acumulado_biopsias = 0
+                    acumulado_adicionales = 0
                     filas_mensual = []
+
                     for dia in dias_del_mes:
                         registros_dia = [
                             registro
                             for registro in registros_mes
                             if registro.get("_fecha") == dia
                         ]
+                        acumulado_procedimientos += sum(
+                            construir_totales_procedimientos(
+                                registros_dia
+                            ).values()
+                        )
+                        acumulado_biopsias += sum(
+                            construir_totales_biopsias(
+                                registros_dia
+                            ).values()
+                        )
+                        acumulado_adicionales += sum(
+                            construir_totales_procedimientos_adicionales(
+                                registros_dia
+                            ).values()
+                        )
                         filas_mensual.append(
                             {
                                 "Fecha": dia.strftime("%d/%m"),
-                                "Procedimientos": sum(
-                                    construir_totales_procedimientos(
-                                        registros_dia
-                                    ).values()
-                                ),
-                                "Biopsias": sum(
-                                    construir_totales_biopsias(
-                                        registros_dia
-                                    ).values()
-                                ),
-                                "Proc. Adicionales": sum(
-                                    construir_totales_procedimientos_adicionales(
-                                        registros_dia
-                                    ).values()
-                                ),
+                                "Procedimientos": acumulado_procedimientos,
+                                "Biopsias": acumulado_biopsias,
+                                "Proc. Adicionales": acumulado_adicionales,
                             }
                         )
 
-                    datos_mensual = pd.DataFrame(
-                        filas_mensual
-                    ).set_index("Fecha")
+                    orden_categorias = [
+                        "Procedimientos",
+                        "Biopsias",
+                        "Proc. Adicionales",
+                    ]
 
-                    st.subheader("Cantidad por día")
-                    st.line_chart(
-                        datos_mensual,
+                    datos_mensual_largo = pd.DataFrame(
+                        filas_mensual
+                    ).melt(
+                        id_vars="Fecha",
+                        value_vars=orden_categorias,
+                        var_name="Categoría",
+                        value_name="Cantidad",
+                    )
+
+                    maximo_valor = (
+                        int(datos_mensual_largo["Cantidad"].max())
+                        if not datos_mensual_largo.empty
+                        else 0
+                    )
+                    techo_eje = max(
+                        10,
+                        math.ceil((maximo_valor + 1) / 10) * 10,
+                    )
+                    valores_eje = list(
+                        range(0, techo_eje + 1, 10)
+                    )
+
+                    grafico_mensual = (
+                        alt.Chart(datos_mensual_largo)
+                        .mark_line(point=True)
+                        .encode(
+                            x=alt.X(
+                                "Fecha:N",
+                                sort=[
+                                    dia.strftime("%d/%m")
+                                    for dia in dias_del_mes
+                                ],
+                                title="Fecha",
+                            ),
+                            y=alt.Y(
+                                "Cantidad:Q",
+                                title="Cantidad acumulada",
+                                scale=alt.Scale(
+                                    domain=[0, techo_eje]
+                                ),
+                                axis=alt.Axis(values=valores_eje),
+                            ),
+                            color=alt.Color(
+                                "Categoría:N",
+                                sort=orden_categorias,
+                                legend=alt.Legend(title=None),
+                            ),
+                            order=alt.Order(
+                                "Categoría:N",
+                                sort="ascending",
+                            ),
+                            tooltip=[
+                                "Fecha",
+                                "Categoría",
+                                "Cantidad",
+                            ],
+                        )
+                    )
+
+                    st.subheader("Acumulado del mes")
+                    st.altair_chart(
+                        grafico_mensual,
                         use_container_width=True,
                     )
 
