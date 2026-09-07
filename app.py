@@ -3,6 +3,7 @@ from pathlib import Path
 from textwrap import dedent
 
 import base64
+import calendar
 import json
 import re
 import time
@@ -99,6 +100,56 @@ def listar_formularios_apps_script():
         )
 
     return datos.get("formularios", [])
+
+
+def agrupar_formularios_por_mes(formularios):
+    """
+    Agrupa los formularios (uno por día) por mes calendario, usando su
+    fecha de creación. Pensado para "Indicadores", donde en vez de
+    elegir un formulario/día suelto se elige un mes y se combinan las
+    respuestas de todos los formularios de ese mes.
+
+    Devuelve una lista de dicts, uno por mes, del más reciente al más
+    antiguo:
+        {"anio": int, "mes": int, "etiqueta": "Septiembre 2026",
+         "formularios": [formulario, ...]}
+    Los formularios sin una fecha de creación válida se omiten.
+    """
+    grupos = {}
+
+    for formulario in formularios:
+        texto_fecha = str(
+            formulario.get("fecha_creacion", "") or ""
+        ).strip()
+        if not texto_fecha:
+            continue
+        try:
+            fecha = datetime.fromisoformat(
+                texto_fecha.replace("Z", "+00:00")
+            ).date()
+        except ValueError:
+            continue
+
+        clave = (fecha.year, fecha.month)
+        grupos.setdefault(clave, []).append(formulario)
+
+    meses = [
+        {
+            "anio": anio,
+            "mes": mes,
+            "etiqueta": f"{MESES_ES[mes]} {anio}",
+            "formularios": formularios_del_mes,
+        }
+        for (anio, mes), formularios_del_mes in grupos.items()
+    ]
+
+    meses.sort(
+        key=lambda grupo: (grupo["anio"], grupo["mes"]),
+        reverse=True,
+    )
+
+    return meses
+
 
 def obtener_respuestas_apps_script(form_id):
     """
@@ -4029,143 +4080,187 @@ elif opcion_menu == "📥 Indicadores":
             st.info("No hay formularios guardados.")
 
         else:
-            indice_formulario = st.selectbox(
-                "Seleccionar formulario",
-                options=range(len(formularios)),
-                format_func=lambda indice: (
-                    f"{formularios[indice].get('titulo', 'Formulario')} "
-                    f"— {formularios[indice].get('fecha_creacion', '')}"
-                ),
-                key="formulario_indicadores_nube",
+            meses_disponibles = agrupar_formularios_por_mes(
+                formularios
             )
 
-            formulario_seleccionado = formularios[
-                indice_formulario
-            ]
-            form_id = formulario_seleccionado[
-                "form_id_google"
-            ]
-
-            with st.spinner(
-                "Consultando respuestas de Google Forms..."
-            ):
-                registros = obtener_registros_formulario(
-                    form_id
-                )
-
-            if not registros:
+            if not meses_disponibles:
                 st.info(
-                    "Este formulario todavía no tiene respuestas."
+                    "No se pudo determinar el mes de los formularios "
+                    "guardados."
                 )
 
             else:
-                total_registros = len(registros)
-
-                st.metric("Registros", total_registros)
-
-                # =====================================================
-                # TOTALES DEL MES (Procedimientos / Biopsias / Adicionales)
-                # =====================================================
-
-                hoy = datetime.now(ZoneInfo("America/Lima")).date()
-                inicio_mes = hoy.replace(day=1)
-
-                registros_mes = [
-                    registro
-                    for registro in registros
-                    if registro.get("_fecha") is not None
-                    and inicio_mes <= registro["_fecha"] <= hoy
-                ]
-
-                total_procedimientos_mes = sum(
-                    construir_totales_procedimientos(
-                        registros_mes
-                    ).values()
-                )
-                total_biopsias_mes = sum(
-                    construir_totales_biopsias(registros_mes).values()
-                )
-                total_adicionales_mes = sum(
-                    construir_totales_procedimientos_adicionales(
-                        registros_mes
-                    ).values()
+                indice_mes = st.selectbox(
+                    "Seleccionar mes",
+                    options=range(len(meses_disponibles)),
+                    format_func=lambda indice: (
+                        meses_disponibles[indice]["etiqueta"]
+                    ),
+                    key="mes_indicadores_nube",
                 )
 
-                st.subheader(
-                    f"Totales del mes ({inicio_mes:%d/%m} - {hoy:%d/%m})"
-                )
+                mes_seleccionado = meses_disponibles[indice_mes]
 
-                columna_proc, columna_biop, columna_adic = st.columns(3)
-
-                with columna_proc:
-                    st.metric(
-                        "Total Procedimientos",
-                        total_procedimientos_mes,
-                    )
-
-                with columna_biop:
-                    st.metric(
-                        "Total Biopsias",
-                        total_biopsias_mes,
-                    )
-
-                with columna_adic:
-                    st.metric(
-                        "Total Proc. Adicionales",
-                        total_adicionales_mes,
-                    )
-
-                # Un día por fila, desde el 1 del mes hasta hoy, con la
-                # cantidad de ESE día en cada una de las 3 categorías.
-                dias_del_mes = [
-                    inicio_mes + timedelta(dias)
-                    for dias in range((hoy - inicio_mes).days + 1)
-                ]
-
-                filas_mensual = []
-                for dia in dias_del_mes:
-                    registros_dia = [
-                        registro
-                        for registro in registros_mes
-                        if registro.get("_fecha") == dia
-                    ]
-                    filas_mensual.append(
-                        {
-                            "Fecha": dia.strftime("%d/%m"),
-                            "Procedimientos": sum(
-                                construir_totales_procedimientos(
-                                    registros_dia
-                                ).values()
-                            ),
-                            "Biopsias": sum(
-                                construir_totales_biopsias(
-                                    registros_dia
-                                ).values()
-                            ),
-                            "Proc. Adicionales": sum(
-                                construir_totales_procedimientos_adicionales(
-                                    registros_dia
-                                ).values()
-                            ),
-                        }
-                    )
-
-                datos_mensual = pd.DataFrame(filas_mensual).set_index(
-                    "Fecha"
-                )
-
-                st.subheader("Cantidad por día (mes en curso)")
-                st.line_chart(
-                    datos_mensual,
-                    use_container_width=True,
-                )
-
-                if st.button(
-                    "Actualizar indicadores",
-                    use_container_width=True,
-                    key="actualizar_indicadores_nube",
+                with st.spinner(
+                    "Consultando respuestas de Google Forms..."
                 ):
-                    st.rerun()
+                    registros = []
+                    for formulario in mes_seleccionado["formularios"]:
+                        registros.extend(
+                            obtener_registros_formulario(
+                                formulario["form_id_google"]
+                            )
+                        )
+
+                if not registros:
+                    st.info(
+                        "Este mes todavía no tiene respuestas."
+                    )
+
+                else:
+                    total_registros = len(registros)
+
+                    st.metric("Registros", total_registros)
+
+                    # =================================================
+                    # TOTALES DEL MES SELECCIONADO
+                    # (Procedimientos / Biopsias / Adicionales)
+                    # =================================================
+
+                    hoy = datetime.now(
+                        ZoneInfo("America/Lima")
+                    ).date()
+                    inicio_mes = date(
+                        mes_seleccionado["anio"],
+                        mes_seleccionado["mes"],
+                        1,
+                    )
+
+                    # Si el mes elegido es el actual, se corta en hoy
+                    # (todavía no terminó); si es un mes pasado, se
+                    # muestra completo hasta su último día.
+                    if (
+                        mes_seleccionado["anio"] == hoy.year
+                        and mes_seleccionado["mes"] == hoy.month
+                    ):
+                        fin_mes = hoy
+                    else:
+                        ultimo_dia_mes = calendar.monthrange(
+                            mes_seleccionado["anio"],
+                            mes_seleccionado["mes"],
+                        )[1]
+                        fin_mes = date(
+                            mes_seleccionado["anio"],
+                            mes_seleccionado["mes"],
+                            ultimo_dia_mes,
+                        )
+
+                    registros_mes = [
+                        registro
+                        for registro in registros
+                        if registro.get("_fecha") is not None
+                        and inicio_mes
+                        <= registro["_fecha"]
+                        <= fin_mes
+                    ]
+
+                    total_procedimientos_mes = sum(
+                        construir_totales_procedimientos(
+                            registros_mes
+                        ).values()
+                    )
+                    total_biopsias_mes = sum(
+                        construir_totales_biopsias(
+                            registros_mes
+                        ).values()
+                    )
+                    total_adicionales_mes = sum(
+                        construir_totales_procedimientos_adicionales(
+                            registros_mes
+                        ).values()
+                    )
+
+                    st.subheader(
+                        f"Totales de {mes_seleccionado['etiqueta']}"
+                    )
+
+                    columna_proc, columna_biop, columna_adic = (
+                        st.columns(3)
+                    )
+
+                    with columna_proc:
+                        st.metric(
+                            "Total Procedimientos",
+                            total_procedimientos_mes,
+                        )
+
+                    with columna_biop:
+                        st.metric(
+                            "Total Biopsias",
+                            total_biopsias_mes,
+                        )
+
+                    with columna_adic:
+                        st.metric(
+                            "Total Proc. Adicionales",
+                            total_adicionales_mes,
+                        )
+
+                    # Un día por fila, desde el 1 del mes hasta el fin
+                    # calculado arriba, con la cantidad de ESE día en
+                    # cada una de las 3 categorías.
+                    dias_del_mes = [
+                        inicio_mes + timedelta(dias)
+                        for dias in range(
+                            (fin_mes - inicio_mes).days + 1
+                        )
+                    ]
+
+                    filas_mensual = []
+                    for dia in dias_del_mes:
+                        registros_dia = [
+                            registro
+                            for registro in registros_mes
+                            if registro.get("_fecha") == dia
+                        ]
+                        filas_mensual.append(
+                            {
+                                "Fecha": dia.strftime("%d/%m"),
+                                "Procedimientos": sum(
+                                    construir_totales_procedimientos(
+                                        registros_dia
+                                    ).values()
+                                ),
+                                "Biopsias": sum(
+                                    construir_totales_biopsias(
+                                        registros_dia
+                                    ).values()
+                                ),
+                                "Proc. Adicionales": sum(
+                                    construir_totales_procedimientos_adicionales(
+                                        registros_dia
+                                    ).values()
+                                ),
+                            }
+                        )
+
+                    datos_mensual = pd.DataFrame(
+                        filas_mensual
+                    ).set_index("Fecha")
+
+                    st.subheader("Cantidad por día")
+                    st.line_chart(
+                        datos_mensual,
+                        use_container_width=True,
+                    )
+
+                    if st.button(
+                        "Actualizar indicadores",
+                        use_container_width=True,
+                        key="actualizar_indicadores_nube",
+                    ):
+                        st.rerun()
 
     except requests.exceptions.ConnectionError:
         st.error(
