@@ -1541,19 +1541,50 @@ def construir_totales_biopsias(registros):
     Ángulo, etc.) para un conjunto de registros, pensado para mostrarse
     como hoja aparte en el reporte descargable.
 
-    Devuelve un dict {tipo_biopsia: suma_cantidad} con todas las
-    categorías oficiales de CATEGORIAS_BIOPSIA, en el mismo orden que
-    la libreta física, aunque alguna quede en 0 en el periodo.
+    "Otros" nunca se cuenta como cajón genérico: solo se suma cuando
+    alguien escribió qué fue en "Otra biopsia", y en ese caso aparece
+    con ese texto como nombre (no como "Otros"). Si se llenó la
+    cantidad de "Otros" pero nadie describió de qué se trató, esa
+    cantidad NO se cuenta en esta hoja (no hay una categoría real a la
+    que asignarla).
+
+    Devuelve un dict {tipo_biopsia: suma_cantidad} con las categorías
+    oficiales de CATEGORIAS_BIOPSIA (salvo "Otros") en el orden de la
+    libreta física, más cualquier biopsia "Otros" con descripción
+    propia, agregada al final en orden alfabético.
     """
-    totales_biopsias = {categoria: 0 for categoria in CATEGORIAS_BIOPSIA}
+    totales_biopsias = {
+        categoria: 0
+        for categoria in CATEGORIAS_BIOPSIA
+        if categoria.casefold() != "otros"
+    }
+    totales_otros = {}
 
     for registro in registros:
-        for categoria in CATEGORIAS_BIOPSIA:
+        for categoria in totales_biopsias:
             totales_biopsias[categoria] += convertir_cantidad_biopsia(
                 registro.get(
                     f"{PREFIJO_CANTIDAD_BIOPSIA}{categoria}", ""
                 )
             )
+
+        texto_otros = str(
+            registro.get("Otra biopsia", "") or ""
+        ).strip()
+        cantidad_otros = convertir_cantidad_biopsia(
+            registro.get(f"{PREFIJO_CANTIDAD_BIOPSIA}Otros", "")
+        )
+
+        if texto_otros and cantidad_otros:
+            totales_otros[texto_otros] = (
+                totales_otros.get(texto_otros, 0) + cantidad_otros
+            )
+
+    for nombre, cantidad in sorted(
+        totales_otros.items(),
+        key=lambda item: item[0].lower(),
+    ):
+        totales_biopsias[nombre] = cantidad
 
     return totales_biopsias
 
