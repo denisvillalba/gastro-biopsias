@@ -1535,6 +1535,55 @@ def construir_totales_procedimientos(registros):
     return totales_procedimientos
 
 
+def construir_totales_biopsias(registros):
+    """
+    Suma la cantidad registrada de cada tipo de biopsia (Antro, Cuerpo,
+    Ángulo, etc.) para un conjunto de registros, pensado para mostrarse
+    como hoja aparte en el reporte descargable.
+
+    Devuelve un dict {tipo_biopsia: suma_cantidad} con todas las
+    categorías oficiales de CATEGORIAS_BIOPSIA, en el mismo orden que
+    la libreta física, aunque alguna quede en 0 en el periodo.
+    """
+    totales_biopsias = {categoria: 0 for categoria in CATEGORIAS_BIOPSIA}
+
+    for registro in registros:
+        for categoria in CATEGORIAS_BIOPSIA:
+            totales_biopsias[categoria] += convertir_cantidad_biopsia(
+                registro.get(
+                    f"{PREFIJO_CANTIDAD_BIOPSIA}{categoria}", ""
+                )
+            )
+
+    return totales_biopsias
+
+
+def construir_totales_procedimientos_adicionales(registros):
+    """
+    Suma la cantidad registrada de cada procedimiento adicional
+    (Sedación, Anestesia, APL, etc.) para un conjunto de registros,
+    pensado para mostrarse como hoja aparte en el reporte descargable.
+
+    Devuelve un dict {procedimiento_adicional: suma_cantidad} con todas
+    las opciones oficiales de PROCEDIMIENTOS_ADICIONALES, en el mismo
+    orden que la libreta física, aunque alguna quede en 0 en el
+    periodo.
+    """
+    totales_adicionales = {
+        adicional: 0 for adicional in PROCEDIMIENTOS_ADICIONALES
+    }
+
+    for registro in registros:
+        for adicional in PROCEDIMIENTOS_ADICIONALES:
+            totales_adicionales[adicional] += convertir_cantidad_biopsia(
+                registro.get(
+                    f"{PREFIJO_CANTIDAD_ADICIONAL}{adicional}", ""
+                )
+            )
+
+    return totales_adicionales
+
+
 def agregar_hoja_totales_procedimiento(libro, totales_procedimientos):
     """
     Agrega al libro una hoja "Totales por Procedimiento" con la suma de
@@ -1592,14 +1641,105 @@ def agregar_hoja_totales_procedimiento(libro, totales_procedimientos):
     return hoja
 
 
-def crear_excel_registro(filas, nombre_hoja, totales_procedimientos=None):
+def agregar_hoja_totales_tipo(libro, nombre_hoja, encabezado, totales):
+    """
+    Agrega al libro una hoja de totales por tipo (Biopsias / Proc Adic),
+    con el mismo estilo que "Totales por Procedimiento": una fila por
+    cada tipo (en el orden de la libreta física, sin reordenar
+    alfabéticamente, porque son opciones fijas de la cuadrícula) más un
+    total general.
+    """
+    hoja = libro.create_sheet(nombre_hoja[:31])
+
+    relleno_encabezado = PatternFill("solid", fgColor="35566B")
+    fuente_encabezado = Font(color="FFFFFF", bold=True)
+    fuente_total = Font(bold=True)
+    borde_fino = Border(
+        left=Side(style="thin", color="7B8790"),
+        right=Side(style="thin", color="7B8790"),
+        top=Side(style="thin", color="7B8790"),
+        bottom=Side(style="thin", color="7B8790"),
+    )
+    alineacion_centro = Alignment(
+        horizontal="center",
+        vertical="center",
+    )
+
+    hoja.append([encabezado, "Suma de Cantidad"])
+    for celda in hoja[1]:
+        celda.fill = relleno_encabezado
+        celda.font = fuente_encabezado
+        celda.alignment = alineacion_centro
+        celda.border = borde_fino
+
+    total_general = 0
+    for nombre, cantidad in totales.items():
+        hoja.append([nombre, cantidad])
+        total_general += cantidad
+        fila_actual = hoja[hoja.max_row]
+        fila_actual[0].border = borde_fino
+        fila_actual[1].border = borde_fino
+        fila_actual[1].alignment = alineacion_centro
+
+    hoja.append(["Total general", total_general])
+    fila_total = hoja[hoja.max_row]
+    for celda in fila_total:
+        celda.font = fuente_total
+        celda.border = borde_fino
+    fila_total[1].alignment = alineacion_centro
+
+    hoja.column_dimensions["A"].width = 28
+    hoja.column_dimensions["B"].width = 18
+    hoja.freeze_panes = "A2"
+    hoja.sheet_view.showGridLines = False
+
+    return hoja
+
+
+def agregar_hoja_biopsias(libro, totales_biopsias):
+    """
+    Agrega al libro la hoja "Biopsias" con la suma de Cantidad de cada
+    tipo de biopsia (Antro, Cuerpo, Ángulo, etc.) del periodo del
+    reporte.
+    """
+    return agregar_hoja_totales_tipo(
+        libro,
+        "Biopsias",
+        "Tipo de Biopsia",
+        totales_biopsias,
+    )
+
+
+def agregar_hoja_proc_adic(libro, totales_procedimientos_adicionales):
+    """
+    Agrega al libro la hoja "Proc Adic" con la suma de Cantidad de cada
+    procedimiento adicional (Sedación, Anestesia, APL, etc.) del
+    periodo del reporte.
+    """
+    return agregar_hoja_totales_tipo(
+        libro,
+        "Proc Adic",
+        "Procedimiento Adicional",
+        totales_procedimientos_adicionales,
+    )
+
+
+def crear_excel_registro(
+    filas,
+    nombre_hoja,
+    totales_procedimientos=None,
+    totales_biopsias=None,
+    totales_procedimientos_adicionales=None,
+):
     """
     Genera el Excel con el mismo orden de columnas del registro físico.
     Firma siempre queda en blanco.
 
     Si se pasa "totales_procedimientos" (dict {procedimiento: cantidad}),
-    se agrega una segunda hoja "Totales por Procedimiento" con la suma
-    de Cantidad por cada procedimiento del periodo del reporte.
+    se agrega una hoja "Totales por Procedimiento" con la suma de
+    Cantidad por cada procedimiento del periodo del reporte. Igual con
+    "totales_biopsias" (hoja "Biopsias") y
+    "totales_procedimientos_adicionales" (hoja "Proc Adic").
     """
     libro = Workbook()
     hoja = libro.active
@@ -1699,6 +1839,18 @@ def crear_excel_registro(filas, nombre_hoja, totales_procedimientos=None):
         agregar_hoja_totales_procedimiento(
             libro,
             totales_procedimientos,
+        )
+
+    if totales_biopsias:
+        agregar_hoja_biopsias(
+            libro,
+            totales_biopsias,
+        )
+
+    if totales_procedimientos_adicionales:
+        agregar_hoja_proc_adic(
+            libro,
+            totales_procedimientos_adicionales,
         )
 
     archivo = BytesIO()
@@ -3723,6 +3875,18 @@ elif opcion_menu == "📋 Reportes":
                         )
                     )
 
+                    totales_biopsias_reporte = (
+                        construir_totales_biopsias(
+                            registros_filtrados
+                        )
+                    )
+
+                    totales_adicionales_reporte = (
+                        construir_totales_procedimientos_adicionales(
+                            registros_filtrados
+                        )
+                    )
+
                     st.metric(
                         "Registros",
                         len(filas_reporte),
@@ -3736,6 +3900,8 @@ elif opcion_menu == "📋 Reportes":
                         filas_reporte,
                         nombre_hoja,
                         totales_procedimientos_reporte,
+                        totales_biopsias_reporte,
+                        totales_adicionales_reporte,
                     )
 
                     st.download_button(
