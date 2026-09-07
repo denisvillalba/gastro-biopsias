@@ -2737,7 +2737,7 @@ st.markdown(
     }
 
     .inicio-titulo {
-        color: #B7CBD3 !important;
+        color: #3A3F44 !important;
         font-family: "Press Start 2P", "Courier New", monospace !important;
         font-size: 18px !important;
         font-weight: 400 !important;
@@ -2749,9 +2749,8 @@ st.markdown(
         width: max-content !important;
 
        text-shadow:
-            -1px -1px 0 rgba(255, 255, 255, 0.35),
-            1px 1px 1px rgba(0, 0, 0, 0.55),
-            1.5px 2.5px 5px rgba(0, 0, 0, 0.45) !important;
+            0 0 5px rgba(255, 255, 255, 0.65),
+            0 0 12px rgba(255, 255, 255, 0.40) !important;
 
         text-decoration: none !important;
         border-bottom: none !important;
@@ -2806,17 +2805,17 @@ st.markdown(
     }
 
     .inicio-descripcion {
-        color: #FFFFFF !important;
+        color: #003C84 !important;
         font-size: 18px !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
         line-height: 1.45 !important;
         letter-spacing: 0.10px !important;
         text-align: center !important;
         margin-bottom: 38px !important;
 
         text-shadow:
-            0 1px 2px rgba(0, 0, 0, 0.55),
-            0 0 4px rgba(0, 0, 0, 0.18) !important;
+            0 0 5px rgba(255, 255, 255, 0.65),
+            0 0 10px rgba(255, 255, 255, 0.40) !important;
     }
 
     .inicio-estado-formulario {
