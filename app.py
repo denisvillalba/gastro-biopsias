@@ -2251,7 +2251,7 @@ st.markdown(
     }
 
     [data-testid="stSpinner"] {
-        transform: translateY(-40px) !important;
+        transform: translateY(-6px) !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
