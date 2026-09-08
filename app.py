@@ -2225,10 +2225,15 @@ st.markdown(
        ETIQUETAS Y CAMPOS
        ========================================================= */
 
-    [data-testid="stMain"] label {
+    [data-testid="stMain"] label,
+    [data-testid="stMain"] label p,
+    [data-testid="stMain"] label span,
+    [data-testid="stMain"] [data-testid="stMetricLabel"],
+    [data-testid="stMain"] [data-testid="stMetricLabel"] p,
+    [data-testid="stMain"] [data-testid="stMetricLabel"] span {
         color: #003C84 !important;
         font-weight: 650 !important;
-        font-size: 18px !important;
+        font-size: 22px !important;
         text-shadow:
             0 0 5px rgba(255, 255, 255, 0.65),
             0 0 10px rgba(255, 255, 255, 0.40) !important;
@@ -2382,7 +2387,7 @@ st.markdown(
     }
 
     [data-testid="stMainBlockContainer"] {
-        padding-top: 0.1rem !important;
+        padding-top: 0rem !important;
     }
 
     [data-testid="stHeader"] {
@@ -3138,7 +3143,13 @@ st.markdown(
 st.markdown("""
 <style>
 .block-container{
-    padding-top: 0.1rem !important;
+    padding-top: 0rem !important;
+}
+[data-testid="stMainBlockContainer"] {
+    padding-top: 0rem !important;
+}
+[data-testid="stMain"] h1 {
+    margin-top: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
