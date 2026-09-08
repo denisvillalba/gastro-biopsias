@@ -2246,6 +2246,25 @@ st.markdown(
         box-shadow: 0 3px 9px rgba(25, 43, 55, 0.14) !important;
     }
 
+    /* Caja del gráfico "Atenciones diarias del mes": mismo fondo
+       oscuro que usa Altair, para que el título (que ya no es parte
+       del gráfico sino un texto de Streamlit aparte) quede visualmente
+       dentro del cuadro y su espaciado se controle con CSS normal. */
+    .st-key-caja_grafico_mensual {
+        background-color: #0E1117 !important;
+        border-radius: 4px !important;
+        padding: 2px 18px 14px 18px !important;
+    }
+
+    .titulo-grafico-mensual {
+        color: #F1F5F7 !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        margin-top: 28px !important;
+        margin-bottom: 0 !important;
+        text-align: left !important;
+    }
+
     [data-testid="stVerticalBlockBorderWrapper"] p {
         color: #003C84 !important;
         font-weight: 650 !important;
@@ -4393,27 +4412,29 @@ elif opcion_menu == "📥 Indicadores":
                     )
 
                     grafico_mensual = (
-                        (barras + etiquetas_totales)
-                        .properties(
-                            title=alt.TitleParams(
-                                text="Atenciones diarias del mes",
-                                anchor="start",
-                                orient="bottom",
-                                color="#F1F5F7",
-                                fontSize=18,
-                                fontWeight="bold",
-                                offset=50,
-                            ),
-                        )
-                        .configure_legend(
-                            title=None,
-                        )
+                        barras + etiquetas_totales
+                    ).configure_legend(
+                        title=None,
                     )
 
-                    st.altair_chart(
-                        grafico_mensual,
-                        use_container_width=True,
-                    )
+                    # El título va como elemento de Streamlit aparte,
+                    # dentro del mismo contenedor que el gráfico (no
+                    # como "title" del propio gráfico de Altair): así
+                    # el espacio antes del texto se controla con el
+                    # margin-top de ".titulo-grafico-mensual" en el
+                    # CSS de arriba, que sí responde de forma
+                    # confiable, en vez del "offset" de Altair.
+                    with st.container(key="caja_grafico_mensual"):
+                        st.altair_chart(
+                            grafico_mensual,
+                            use_container_width=True,
+                        )
+                        st.markdown(
+                            '<div class="titulo-grafico-mensual">'
+                            "Atenciones diarias del mes"
+                            "</div>",
+                            unsafe_allow_html=True,
+                        )
 
                     if st.button(
                         "Actualizar indicadores",
