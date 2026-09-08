@@ -4398,10 +4398,11 @@ elif opcion_menu == "📥 Indicadores":
                             title=alt.TitleParams(
                                 text="Atenciones diarias del mes",
                                 anchor="start",
+                                orient="bottom",
                                 color="#F1F5F7",
                                 fontSize=18,
                                 fontWeight="bold",
-                                offset=14,
+                                offset=20,
                             ),
                         )
                         .configure_legend(
