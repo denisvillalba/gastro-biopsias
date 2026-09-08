@@ -4393,12 +4393,22 @@ elif opcion_menu == "📥 Indicadores":
                     )
 
                     grafico_mensual = (
-                        barras + etiquetas_totales
-                    ).configure_legend(
-                        title=None,
+                        (barras + etiquetas_totales)
+                        .properties(
+                            title=alt.TitleParams(
+                                text="Atenciones diarias del mes",
+                                anchor="start",
+                                color="#F1F5F7",
+                                fontSize=18,
+                                fontWeight="bold",
+                                offset=14,
+                            ),
+                        )
+                        .configure_legend(
+                            title=None,
+                        )
                     )
 
-                    st.subheader("Atenciones diarias del mes")
                     st.altair_chart(
                         grafico_mensual,
                         use_container_width=True,
