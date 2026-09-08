@@ -4325,17 +4325,16 @@ elif opcion_menu == "📥 Indicadores":
                         sort=orden_categorias,
                     )
 
-                    # Ancho fijo por fecha (grupo de 3 barras), para que
-                    # el grosor de las barras se mantenga estándar sin
-                    # importar si el mes lleva 1 o 31 días: el gráfico
-                    # crece a lo ancho según la cantidad de fechas, en
-                    # vez de estirar las barras para llenar el
-                    # contenedor.
-                    ancho_por_fecha = 55
+                    # Ancho fijo de cada barra en píxeles: así el
+                    # grosor se mantiene estándar sin importar si el
+                    # mes lleva 1 o 31 días transcurridos (antes, al
+                    # llenar el contenedor con pocas fechas, las
+                    # barras se veían más gruesas).
+                    ancho_barra = 16
 
                     barras = (
                         alt.Chart(datos_mensual_largo)
-                        .mark_bar()
+                        .mark_bar(size=ancho_barra)
                         .encode(
                             x=eje_x,
                             xOffset=offset_categoria,
@@ -4370,19 +4369,15 @@ elif opcion_menu == "📥 Indicadores":
                     )
 
                     grafico_mensual = (
-                        (barras + etiquetas_totales)
-                        .properties(
-                            width=alt.Step(ancho_por_fecha),
-                        )
-                        .configure_legend(
-                            title=None,
-                        )
+                        barras + etiquetas_totales
+                    ).configure_legend(
+                        title=None,
                     )
 
                     st.subheader("Acumulado del mes")
                     st.altair_chart(
                         grafico_mensual,
-                        use_container_width=False,
+                        use_container_width=True,
                     )
 
                     if st.button(
