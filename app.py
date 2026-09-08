@@ -4320,18 +4320,19 @@ elif opcion_menu == "📥 Indicadores":
                         sort=orden_categorias,
                         legend=alt.Legend(title=None),
                     )
+                    offset_categoria = alt.XOffset(
+                        "Categoría:N",
+                        sort=orden_categorias,
+                    )
 
-                    lineas = (
+                    barras = (
                         alt.Chart(datos_mensual_largo)
-                        .mark_line(point=True)
+                        .mark_bar()
                         .encode(
                             x=eje_x,
+                            xOffset=offset_categoria,
                             y=eje_y,
                             color=color_categoria,
-                            order=alt.Order(
-                                "Categoría:N",
-                                sort="ascending",
-                            ),
                             tooltip=[
                                 "Fecha",
                                 "Categoría",
@@ -4340,9 +4341,9 @@ elif opcion_menu == "📥 Indicadores":
                         )
                     )
 
-                    # Suma total (último punto de cada línea) marcada
-                    # sobre el propio gráfico, junto al final de cada
-                    # serie.
+                    # Suma total (última barra de cada categoría)
+                    # marcada sobre el propio gráfico, encima de
+                    # cada barra.
                     datos_totales_finales = datos_mensual_largo[
                         datos_mensual_largo["Fecha"]
                         == orden_fechas[-1]
@@ -4351,13 +4352,15 @@ elif opcion_menu == "📥 Indicadores":
                     etiquetas_totales = (
                         alt.Chart(datos_totales_finales)
                         .mark_text(
-                            align="left",
-                            dx=10,
+                            align="center",
+                            baseline="bottom",
+                            dy=-4,
                             fontWeight="bold",
                             fontSize=13,
                         )
                         .encode(
                             x=eje_x,
+                            xOffset=offset_categoria,
                             y=eje_y,
                             text="Cantidad:Q",
                             color=color_categoria,
@@ -4365,7 +4368,7 @@ elif opcion_menu == "📥 Indicadores":
                     )
 
                     grafico_mensual = (
-                        lineas + etiquetas_totales
+                        barras + etiquetas_totales
                     ).configure_legend(
                         title=None,
                     )
