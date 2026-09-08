@@ -4402,7 +4402,7 @@ elif opcion_menu == "📥 Indicadores":
                                 color="#F1F5F7",
                                 fontSize=18,
                                 fontWeight="bold",
-                                offset=20,
+                                offset=30,
                             ),
                         )
                         .configure_legend(
