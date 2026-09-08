@@ -2228,6 +2228,7 @@ st.markdown(
     [data-testid="stMain"] label {
         color: #003C84 !important;
         font-weight: 650 !important;
+        font-size: 18px !important;
         text-shadow:
             0 0 5px rgba(255, 255, 255, 0.65),
             0 0 10px rgba(255, 255, 255, 0.40) !important;
@@ -2381,7 +2382,7 @@ st.markdown(
     }
 
     [data-testid="stMainBlockContainer"] {
-        padding-top: 0.6rem !important;
+        padding-top: 0.1rem !important;
     }
 
     [data-testid="stHeader"] {
@@ -3137,7 +3138,7 @@ st.markdown(
 st.markdown("""
 <style>
 .block-container{
-    padding-top: 0.5rem !important;
+    padding-top: 0.1rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
