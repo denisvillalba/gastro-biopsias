@@ -2253,14 +2253,14 @@ st.markdown(
     .st-key-caja_grafico_mensual {
         background-color: #0E1117 !important;
         border-radius: 4px !important;
-        padding: 2px 18px 14px 18px !important;
+        padding: 2px 18px 22px 18px !important;
     }
 
     .titulo-grafico-mensual {
         color: #F1F5F7 !important;
         font-size: 18px !important;
         font-weight: bold !important;
-        margin-top: 28px !important;
+        margin-top: 4px !important;
         margin-bottom: 0 !important;
         text-align: left !important;
     }
