@@ -2450,6 +2450,20 @@ st.markdown(
         margin-bottom: 12px !important;
     }
 
+    /* Sombra en títulos, subtítulos y métricas del área principal:
+       sin esto, el texto claro se pierde contra las zonas más
+       claras de la foto de fondo. */
+    [data-testid="stMain"] h1,
+    [data-testid="stMain"] h2,
+    [data-testid="stMain"] h3,
+    [data-testid="stMain"] [data-testid="stMetricLabel"],
+    [data-testid="stMain"] [data-testid="stMetricValue"] {
+        text-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.85),
+            0 0 8px rgba(0, 0, 0, 0.40),
+            0 0 14px rgba(0, 0, 0, 0.22) !important;
+    }
+
     .descripcion-seccion {
         color: #F4E3B2 !important;
         font-size: 20px !important;
@@ -4226,10 +4240,11 @@ elif opcion_menu == "📥 Indicadores":
                         )
 
                     # Un día por fila, desde el 1 del mes hasta el fin
-                    # calculado arriba, con la suma ACUMULADA (del 1 a
-                    # esa fecha) de cada una de las 3 categorías, en
-                    # ese orden: Procedimientos, Biopsias, Proc.
-                    # Adicionales.
+                    # calculado arriba, con las atenciones DE ESE DÍA
+                    # (no acumuladas) de cada una de las 3 categorías,
+                    # en ese orden: Procedimientos, Biopsias, Proc.
+                    # Adicionales. El acumulado del mes se muestra
+                    # aparte, en los "Totales de <mes>" de arriba.
                     dias_del_mes = [
                         inicio_mes + timedelta(dias)
                         for dias in range(
@@ -4237,9 +4252,6 @@ elif opcion_menu == "📥 Indicadores":
                         )
                     ]
 
-                    acumulado_procedimientos = 0
-                    acumulado_biopsias = 0
-                    acumulado_adicionales = 0
                     filas_mensual = []
 
                     for dia in dias_del_mes:
@@ -4248,17 +4260,17 @@ elif opcion_menu == "📥 Indicadores":
                             for registro in registros_mes
                             if registro.get("_fecha") == dia
                         ]
-                        acumulado_procedimientos += sum(
+                        total_dia_procedimientos = sum(
                             construir_totales_procedimientos(
                                 registros_dia
                             ).values()
                         )
-                        acumulado_biopsias += sum(
+                        total_dia_biopsias = sum(
                             construir_totales_biopsias(
                                 registros_dia
                             ).values()
                         )
-                        acumulado_adicionales += sum(
+                        total_dia_adicionales = sum(
                             construir_totales_procedimientos_adicionales(
                                 registros_dia
                             ).values()
@@ -4266,9 +4278,9 @@ elif opcion_menu == "📥 Indicadores":
                         filas_mensual.append(
                             {
                                 "Fecha": dia.strftime("%d/%m"),
-                                "Procedimientos": acumulado_procedimientos,
-                                "Biopsias": acumulado_biopsias,
-                                "Proc. Adicionales": acumulado_adicionales,
+                                "Procedimientos": total_dia_procedimientos,
+                                "Biopsias": total_dia_biopsias,
+                                "Proc. Adicionales": total_dia_adicionales,
                             }
                         )
 
@@ -4311,7 +4323,7 @@ elif opcion_menu == "📥 Indicadores":
                     )
                     eje_y = alt.Y(
                         "Cantidad:Q",
-                        title="Cantidad acumulada",
+                        title="Cantidad del día",
                         scale=alt.Scale(domain=[0, techo_eje]),
                         axis=alt.Axis(values=valores_eje),
                     )
@@ -4374,7 +4386,7 @@ elif opcion_menu == "📥 Indicadores":
                         title=None,
                     )
 
-                    st.subheader("Acumulado del mes")
+                    st.subheader("Atenciones diarias del mes")
                     st.altair_chart(
                         grafico_mensual,
                         use_container_width=True,
