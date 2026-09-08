@@ -4325,6 +4325,14 @@ elif opcion_menu == "📥 Indicadores":
                         sort=orden_categorias,
                     )
 
+                    # Ancho fijo por fecha (grupo de 3 barras), para que
+                    # el grosor de las barras se mantenga estándar sin
+                    # importar si el mes lleva 1 o 31 días: el gráfico
+                    # crece a lo ancho según la cantidad de fechas, en
+                    # vez de estirar las barras para llenar el
+                    # contenedor.
+                    ancho_por_fecha = 55
+
                     barras = (
                         alt.Chart(datos_mensual_largo)
                         .mark_bar()
@@ -4341,16 +4349,10 @@ elif opcion_menu == "📥 Indicadores":
                         )
                     )
 
-                    # Suma total (última barra de cada categoría)
-                    # marcada sobre el propio gráfico, encima de
-                    # cada barra.
-                    datos_totales_finales = datos_mensual_largo[
-                        datos_mensual_largo["Fecha"]
-                        == orden_fechas[-1]
-                    ]
-
+                    # Cantidad marcada sobre cada barra (todas las
+                    # fechas, no solo la última).
                     etiquetas_totales = (
-                        alt.Chart(datos_totales_finales)
+                        alt.Chart(datos_mensual_largo)
                         .mark_text(
                             align="center",
                             baseline="bottom",
@@ -4368,15 +4370,19 @@ elif opcion_menu == "📥 Indicadores":
                     )
 
                     grafico_mensual = (
-                        barras + etiquetas_totales
-                    ).configure_legend(
-                        title=None,
+                        (barras + etiquetas_totales)
+                        .properties(
+                            width=alt.Step(ancho_por_fecha),
+                        )
+                        .configure_legend(
+                            title=None,
+                        )
                     )
 
                     st.subheader("Acumulado del mes")
                     st.altair_chart(
                         grafico_mensual,
-                        use_container_width=True,
+                        use_container_width=False,
                     )
 
                     if st.button(
