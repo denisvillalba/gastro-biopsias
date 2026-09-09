@@ -3888,19 +3888,6 @@ elif opcion_menu == "📋 Reportes":
             )
 
         else:
-            indice_formulario = st.selectbox(
-                "Seleccionar formulario",
-                options=range(len(formularios)),
-                format_func=lambda indice: (
-                    f"{formularios[indice].get('titulo', 'Formulario')} "
-                    f"— {formularios[indice].get('fecha_creacion', '')}"
-                ),
-                key="formulario_reporte_excel",
-            )
-
-            formulario = formularios[indice_formulario]
-            form_id = formulario["form_id_google"]
-
             tipo_reporte = st.radio(
                 "Tipo de reporte",
                 options=[
@@ -3911,43 +3898,50 @@ elif opcion_menu == "📋 Reportes":
                 key="tipo_reporte_excel",
             )
 
-            with st.spinner(
-                "Consultando respuestas de Google Forms..."
-            ):
-                registros = obtener_registros_formulario(
-                    form_id
+            registros_filtrados = None
+
+            if tipo_reporte == "Por día":
+                indice_formulario = st.selectbox(
+                    "Seleccionar formulario",
+                    options=range(len(formularios)),
+                    format_func=lambda indice: (
+                        f"{formularios[indice].get('titulo', 'Formulario')} "
+                        f"— {formularios[indice].get('fecha_creacion', '')}"
+                    ),
+                    key="formulario_reporte_excel",
                 )
 
-            registros_con_fecha = [
-                registro
-                for registro in registros
-                if registro.get("_fecha") is not None
-            ]
+                formulario = formularios[indice_formulario]
+                form_id = formulario["form_id_google"]
 
-            if not registros_con_fecha:
-                st.info(
-                    "El formulario todavía no tiene respuestas "
-                    "con una fecha válida."
-                )
-
-            else:
-                fechas_disponibles = sorted(
-                    {
-                        registro["_fecha"]
-                        for registro in registros_con_fecha
-                    }
-                )
-
-                if tipo_reporte == "Por día":
-                    fecha_predeterminada = fechas_disponibles[-1]
-
-                    fecha_seleccionada = st.date_input(
-                        "Fecha del reporte",
-                        value=fecha_predeterminada,
-                        min_value=fechas_disponibles[0],
-                        max_value=fechas_disponibles[-1],
-                        key="fecha_reporte_dia",
+                with st.spinner(
+                    "Consultando respuestas de Google Forms..."
+                ):
+                    registros = obtener_registros_formulario(
+                        form_id
                     )
+
+                registros_con_fecha = [
+                    registro
+                    for registro in registros
+                    if registro.get("_fecha") is not None
+                ]
+
+                if not registros_con_fecha:
+                    st.info(
+                        "El formulario todavía no tiene respuestas "
+                        "con una fecha válida."
+                    )
+
+                else:
+                    fechas_disponibles = sorted(
+                        {
+                            registro["_fecha"]
+                            for registro in registros_con_fecha
+                        }
+                    )
+
+                    fecha_seleccionada = fechas_disponibles[-1]
 
                     registros_filtrados = [
                         registro
@@ -3966,64 +3960,69 @@ elif opcion_menu == "📋 Reportes":
                         fecha_seleccionada.strftime("%d/%m/%Y")
                     )
 
+            else:
+                meses_disponibles = agrupar_formularios_por_mes(
+                    formularios
+                )
+
+                if not meses_disponibles:
+                    st.info(
+                        "No se pudo determinar el mes de los "
+                        "formularios guardados."
+                    )
+
                 else:
-                    anios_disponibles = sorted(
-                        {
-                            registro["_fecha"].year
-                            for registro in registros_con_fecha
-                        },
-                        reverse=True,
+                    indice_mes = st.selectbox(
+                        "Seleccionar mes",
+                        options=range(len(meses_disponibles)),
+                        format_func=lambda indice: (
+                            meses_disponibles[indice]["etiqueta"]
+                        ),
+                        key="mes_reporte_excel",
                     )
 
-                    columna_anio, columna_mes = st.columns(2)
+                    mes_elegido = meses_disponibles[indice_mes]
 
-                    with columna_anio:
-                        anio_seleccionado = st.selectbox(
-                            "Año",
-                            options=anios_disponibles,
-                            key="anio_reporte_mes",
-                        )
+                    with st.spinner(
+                        "Consultando respuestas de Google Forms..."
+                    ):
+                        registros = []
+                        for formulario in mes_elegido["formularios"]:
+                            registros.extend(
+                                obtener_registros_formulario(
+                                    formulario["form_id_google"]
+                                )
+                            )
 
-                    meses_disponibles = sorted(
-                        {
-                            registro["_fecha"].month
-                            for registro in registros_con_fecha
-                            if registro["_fecha"].year
-                            == anio_seleccionado
-                        }
-                    )
-
-                    with columna_mes:
-                        mes_seleccionado = st.selectbox(
-                            "Mes",
-                            options=meses_disponibles,
-                            format_func=lambda mes: MESES_ES[mes],
-                            key="mes_reporte_mes",
-                        )
-
-                    registros_filtrados = [
+                    registros_con_fecha = [
                         registro
-                        for registro in registros_con_fecha
-                        if (
-                            registro["_fecha"].year
-                            == anio_seleccionado
-                            and registro["_fecha"].month
-                            == mes_seleccionado
-                        )
+                        for registro in registros
+                        if registro.get("_fecha") is not None
+                        and registro["_fecha"].year
+                        == mes_elegido["anio"]
+                        and registro["_fecha"].month
+                        == mes_elegido["mes"]
                     ]
 
-                    nombre_hoja = "Registro mensual"
-                    nombre_archivo = (
-                        "registro_biopsias_"
-                        f"{anio_seleccionado}-"
-                        f"{mes_seleccionado:02d}.xlsx"
-                    )
+                    if not registros_con_fecha:
+                        st.info(
+                            "Este mes todavía no tiene respuestas "
+                            "con una fecha válida."
+                        )
 
-                    periodo_texto = (
-                        f"{MESES_ES[mes_seleccionado]} "
-                        f"{anio_seleccionado}"
-                    )
+                    else:
+                        registros_filtrados = registros_con_fecha
 
+                        nombre_hoja = "Registro mensual"
+                        nombre_archivo = (
+                            "registro_biopsias_"
+                            f"{mes_elegido['anio']}-"
+                            f"{mes_elegido['mes']:02d}.xlsx"
+                        )
+
+                        periodo_texto = mes_elegido["etiqueta"]
+
+            if registros_filtrados is not None:
                 if not registros_filtrados:
                     st.warning(
                         "No existen respuestas en el periodo "
